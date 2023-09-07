@@ -23,7 +23,7 @@ class Text2ImageDataset:
     ):
         super().__init__()
         self.tokenizer = tokenizer
-        self.target_size = target_size if isinstance(target_size, (tuple, list)) else [target_size, target_size]
+        self.target_size = [target_size, target_size] if isinstance(target_size, int) else target_size
         self.random_crop = random_crop
         self.filter_small_size = filter_small_size
 
@@ -63,6 +63,11 @@ class Text2ImageDataset:
             "original_size_as_tuple": np.array([image.shape[0], image.shape[1]]),  # original h, original w
             "target_size_as_tuple": np.array([self.target_size[0], self.target_size[1]]),  # target h, target w
             "crop_coords_top_left": np.array([0, 0]),  # crop top, crop left
+            "aesthetic_score": np.array(
+                [
+                    6.0,
+                ]
+            ),
         }
 
         for trans in self.transforms:

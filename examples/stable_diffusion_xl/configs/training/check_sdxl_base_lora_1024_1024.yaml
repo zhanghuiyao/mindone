@@ -141,7 +141,7 @@ optim:
 
 data:
     per_batch_size: 1
-    total_step: 15000
+    total_step: 5000
     num_parallel_workers: 6
     python_multiprocessing: False
     shuffle: True
@@ -149,16 +149,15 @@ data:
     dataset_config:
         target: gm.data.dataset.Text2ImageDataset
         params:
-            target_size: 1024
+            target_size: [1024, 1024]
             transforms:
                 - target: gm.data.mappers.Resize
                   params:
-                    size: 1024
+                    size: [1024, 1024]
                     interpolation: 3
                 - target: gm.data.mappers.Rescaler
                   params:
                     isfloat: False
-                - target: gm.data.mappers.AddOriginalImageSizeAsTupleAndCropToSquare
                 - target: gm.data.mappers.Transpose
                   params:
                     type: hwc2chw

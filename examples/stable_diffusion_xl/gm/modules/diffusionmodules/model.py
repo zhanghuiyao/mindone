@@ -32,7 +32,8 @@ class Upsample(nn.Cell):
 
     def construct(self, x):
         # x = ops.interpolate(x, scale_factor=2.0, mode="nearest")
-        x = ops.interpolate(x, size=(x.shape[2] * 2, x.shape[3] * 2), mode="nearest")
+        # x = ops.interpolate(x, size=(x.shape[2] * 2, x.shape[3] * 2), mode="nearest")
+        x = ops.ResizeNearestNeighbor(size=(x.shape[2] * 2, x.shape[3] * 2))(x)
         if self.with_conv:
             x = self.conv(x)
         return x
@@ -211,9 +212,9 @@ class MemoryEfficientAttnBlock(nn.Cell):
         b_v, c_v, _, _ = v.shape
         v = v.view(b_v, 1, c_v, -1).swapaxes(-1, -2)  # b c h w -> b 1 c (h w) -> b 1 (h w) c
 
-        q_n, k_n, v_n = q.shape[-2], k.shape[-2], v.shape[-2]
+        q_n, k_n = q.shape[-2], k.shape[-2]
         head_dim = q.shape[-1]
-        if q_n % 16 == 0 and k_n % 16 == 0 and v_n % 16 == 0 and head_dim % 16 == 0 and head_dim <= 256:
+        if q_n % 16 == 0 and k_n % 16 == 0 and head_dim <= 256:
             h_ = self.flash_attention(q, k, v)
         else:
             h_ = scaled_dot_product_attention(q, k, v)  # scale is dim_head ** -0.5 per default
@@ -240,7 +241,7 @@ class LinAttnBlock(LinearAttention):
 def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
     assert attn_type in ["vanilla", "flash-attention", "linear", "none"], f"attn_type {attn_type} unknown"
 
-    print(f"making attention of type '{attn_type}' with {in_channels} in_channels")
+    print(f"AE: making attention of type '{attn_type}' with {in_channels} in_channels")
 
     if attn_type == "flash-attention" and not FLASH_IS_AVAILABLE:
         print(
