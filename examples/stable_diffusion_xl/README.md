@@ -19,8 +19,9 @@ This folder contains [Stable Diffusion XL (SDXL)](https://arxiv.org/abs/2307.019
 1. Support SDXL-1.0-Refiner model image-to-image generative.
 2. Support SDXL-1.0-Refiner LoRA fine-tune.
 3. Support SDXL-1.0-PipeLine txt-to-image generative.
-4. Improved sampling speed (e.q. sdxl-base sample 40 steps on Ascend910A: 125s -> 21s).
-5. Adapted to [MindSpore 2.1.0](https://www.mindspore.cn/install).
+4. Support Multi-Aspect data process.
+5. Improved sampling speed (e.q. sdxl-base sample 40 steps on Ascend910A: 125s -> 21s).
+6. Adapted to [MindSpore 2.1.0](https://www.mindspore.cn/install).
 
 **Aug 30, 2023**
 

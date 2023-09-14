@@ -88,14 +88,8 @@ class Resize:
         if isinstance(interpolation, int):
             interpolation = inter_map.get(interpolation, Inter.BILINEAR)
 
-        size = (
-            [
-                size,
-            ]
-            if isinstance(size, int)
-            else size
-        )
-        self.resize_op = ms.dataset.transforms.vision.Resize(list(size), interpolation)
+        size = size if isinstance(size, int) else list(size)
+        self.resize_op = ms.dataset.transforms.vision.Resize(size, interpolation)
         self.key = key
 
     def __call__(self, sample: Dict):

@@ -8,10 +8,11 @@ import mindspore as ms
 from mindspore import Tensor, ops
 
 
-def scaled_dot_product_attention(query, key, value, attn_mask=None):
+def scaled_dot_product_attention(query, key, value, attn_mask=None, dtype=None):
     # force fp16 precision calculation
     _dtype = query.dtype
-    query, key, value = query.astype(ms.float16), key.astype(ms.float16), value.astype(ms.float16)
+    if dtype is not None:
+        query, key, value = query.astype(dtype), key.astype(dtype), value.astype(dtype)
 
     if attn_mask is not None:
         attn_mask = attn_mask.masked_fill(not attn_mask, -1e5) if attn_mask.dtype == ms.bool_ else attn_mask
