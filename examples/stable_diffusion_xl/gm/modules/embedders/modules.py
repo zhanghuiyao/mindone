@@ -62,8 +62,11 @@ class AbstractEmbModel(nn.Cell):
     def input_key(self):
         del self._input_key
 
+    def tokenize(self, x):
+        return x
 
-class GeneralConditioner(nn.Cell):
+
+class _GeneralConditioner(nn.Cell):
     OUTPUT_DIM2KEYS = {2: "vector", 3: "crossattn", 4: "concat", 5: "concat"}
     KEY2CATDIM = {"vector": 1, "crossattn": 2, "concat": 1}
 
@@ -110,19 +113,29 @@ class GeneralConditioner(nn.Cell):
                 batch[embedder.input_key][i] = val
         return batch
 
-    def __call__(self, batch: Dict, force_zero_embeddings: Optional[List] = None) -> Dict:
-        output = dict()
-        if force_zero_embeddings is None:
-            force_zero_embeddings = []
+    def tokenize(self, batch: Dict) -> List:
+        tokens = []
         for embedder in self.embedders:
             if hasattr(embedder, "input_key") and (embedder.input_key is not None):
                 if embedder.legacy_ucg_val is not None:
                     batch = self.possibly_get_ucg_val(embedder, batch)
-                emb_out = embedder(batch[embedder.input_key])
+
+                token = embedder.tokenize(batch[embedder.input_key])
             elif hasattr(embedder, "input_keys"):
-                emb_out = embedder(*[batch[k] for k in embedder.input_keys])
+                token = embedder.tokenize(*[batch[k] for k in embedder.input_keys])
             else:
                 raise AttributeError("embedder does not have attribute input_key/input_keys.")
+            tokens.append(token)
+        return tokens
+
+    def __call__(self, tokens: List, force_zero_embeddings: Optional[List] = None) -> Dict:
+        output = dict()
+        if force_zero_embeddings is None:
+            force_zero_embeddings = []
+
+        for i in range(len(self.embedders)):
+            embedder = self.embedders[i]
+            emb_out = embedder(tokens[i])
 
             assert isinstance(
                 emb_out, (Tensor, list, tuple)
@@ -147,6 +160,91 @@ class GeneralConditioner(nn.Cell):
                 else:
                     output[out_key] = emb
         return output
+
+    def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None):
+        if force_uc_zero_embeddings is None:
+            force_uc_zero_embeddings = []
+        ucg_rates = list()
+        for embedder in self.embedders:
+            ucg_rates.append(embedder.ucg_rate)
+            embedder.ucg_rate = 0.0
+        c = self(batch_c)
+        uc = self(batch_c if batch_uc is None else batch_uc, force_uc_zero_embeddings)
+
+        for embedder, rate in zip(self.embedders, ucg_rates):
+            embedder.ucg_rate = rate
+        return c, uc
+
+
+class GeneralConditioner(nn.Cell):
+    OUTPUT_DIM2KEYS = {2: "vector", 3: "crossattn", 4: "concat", 5: "concat"}
+    KEY2CATDIM = {"vector": 1, "crossattn": 2, "concat": 1}
+
+    def __init__(self, emb_models: Union[List, ListConfig]):
+        super().__init__()
+        embedders = []
+        for n, embconfig in enumerate(emb_models):
+            embedder = instantiate_from_config(embconfig)
+            assert isinstance(
+                embedder, AbstractEmbModel
+            ), f"embedder model {embedder.__class__.__name__} has to inherit from AbstractEmbModel"
+            embedder.is_trainable = embconfig.get("is_trainable", False)
+            embedder.ucg_rate = embconfig.get("ucg_rate", 0.0)
+            if not embedder.is_trainable:
+                embedder.set_train(False)
+                embedder.set_grad(False)
+                for _, param in embedder.parameters_and_names():
+                    param.requires_grad = False
+            print(
+                f"Initialized embedder #{n}: {embedder.__class__.__name__} "
+                f"with {count_params(embedder, False)} params. Trainable: {embedder.is_trainable}"
+            )
+
+            if "input_key" in embconfig:
+                embedder.input_key = embconfig["input_key"]
+            else:
+                raise KeyError(f"need either 'input_key' or 'input_keys' for embedder {embedder.__class__.__name__}")
+
+            embedders.append(embedder)
+        self.embedders = nn.CellList(embedders)
+
+    def tokenize(self, batch: Dict) -> List[Tensor]:
+        tokens = []
+        for embedder in self.embedders:
+            token = embedder.tokenize(batch[embedder.input_key])
+            tokens.append(token)
+
+        return tokens
+
+    def construct(self, tokens: List[Tensor]):
+        output = {}
+        for i in range(len(self.embedders)):
+            embedder = self.embedders[i]
+            emb_out = embedder(tokens[i])
+
+            if not isinstance(emb_out, (list, tuple)):
+                emb_out = [emb_out]
+            for emb in emb_out:
+                out_key = self.OUTPUT_DIM2KEYS[emb.dim()]
+                if embedder.ucg_rate > 0.0:
+                    emb = (
+                        expand_dims_like(
+                            ops.bernoulli((1.0 - embedder.ucg_rate) * ops.ones(emb.shape[0], dtype=emb.dtype)),
+                            emb,
+                        )
+                        * emb
+                    )
+                if out_key in output:
+                    emb = ops.cast(emb, output[out_key].dtype) # zhy_test
+                    output[out_key] = ops.concat((output[out_key], emb), self.KEY2CATDIM[out_key])
+                else:
+                    output[out_key] = emb
+
+        # return output
+
+        context = output.get("crossattn", None)
+        y = output.get("vector", None)
+        return context, y
 
     def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None):
         if force_uc_zero_embeddings is None:
@@ -201,7 +299,7 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
         for _, p in self.parameters_and_names():
             p.requires_grad = False
 
-    def construct(self, text):
+    def tokenize(self, text):
         batch_encoding = self.tokenizer(
             text,
             truncation=True,
@@ -211,6 +309,10 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
             padding="max_length",
         )
         tokens = Tensor(np.array(batch_encoding["input_ids"]), ms.int32)
+        return tokens
+
+    @ms.jit
+    def construct(self, tokens):
 
         (last_hidden_state, pooler_output, hidden_states, attentions) = self.embedding(
             input_ids=tokens, output_hidden_states=(self.layer == "hidden")
@@ -226,7 +328,6 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
             return z, pooler_output
         return z
 
-    @ms.jit
     def embedding(self, input_ids, output_hidden_states):
         return self.transformer(input_ids=input_ids, output_hidden_states=output_hidden_states)
 
@@ -275,8 +376,12 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
         for _, p in self.parameters_and_names():
             p.requires_grad = False
 
-    def construct(self, text):
+    def tokenize(self, text):
         tokens = openclip_tokenize(text)
+        tokens = Tensor(tokens, dtype=ms.int32)
+        return tokens
+
+    def construct(self, tokens):
         z = self.encode_with_transformer(tokens)
         if not self.return_pooled and self.legacy:
             return z
@@ -346,3 +451,21 @@ class ConcatTimestepEmbedderND(AbstractEmbModel):
         emb = emb.view(b, dims, self.outdim).view(b, -1)
 
         return emb
+
+
+if __name__ == '__main__':
+    open_clip_model = FrozenOpenCLIPEmbedder2(
+        arch="ViT-bigG-14-Text",
+        freeze=True,
+        layer='penultimate',
+        always_return_pooled=True,
+        legacy=False,
+        require_pretrained=False,
+    )
+    ms.amp.auto_mixed_precision(open_clip_model, 'O2')
+    tokens = open_clip_model.tokenize(["a photo of a cat", "a photo of a dog"])
+    emb2 = open_clip_model(tokens)
+    if isinstance(emb2, (tuple, list)):
+        print(f"FrozenOpenCLIPEmbedder2, emb.shape: {[e.shape for e in emb2]}, emb.dtype: {[e.dtype for e in emb2]}")
+    else:
+        print(f"FrozenOpenCLIPEmbedder2, emb.shape: {emb2.shape}, emb.dtype: {emb2.dtype}")

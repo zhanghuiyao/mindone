@@ -55,6 +55,16 @@ class DiffusionEngine(nn.Cell):
         if ckpt_path is not None:
             self.load_pretrained(ckpt_path)
 
+    def reset_auto_mix_precision(self):
+        if self.disable_first_stage_amp:
+            self.first_stage_model.to_float(ms.float32)
+
+        # FIXME: OpenCLIP Bug
+        from gm.modules.embedders import FrozenOpenCLIPEmbedder2
+        for embedder in self.conditioner.embedders:
+            if isinstance(embedder, FrozenOpenCLIPEmbedder2):
+                embedder.to_float(ms.float32)
+
     def load_pretrained(self, path: str) -> None:
         if path.endswith("ckpt"):
             sd = ms.load_checkpoint(path)
@@ -149,8 +159,10 @@ class DiffusionEngine(nn.Cell):
     def train_step(self, batch, grad_func):
         # get latent and condition
         x = batch[self.input_key]
+        tokens = self.conditioner.tokenize(batch)
+
         x = self.encode_first_stage(x)
-        cond = self.conditioner(batch)
+        cond = self.conditioner(tokens)
         cond = self.openai_input_warpper(cond)
         sigmas = self.sigma_sampler(x.shape[0])
         noise = ops.randn_like(x)

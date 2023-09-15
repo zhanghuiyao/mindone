@@ -59,8 +59,7 @@ def append_zero(x):
 def append_dims(x, target_dims):
     """Appends dimensions to the end of a tensor until it has target_dims dimensions."""
     dims_to_append = target_dims - x.ndim
-    if dims_to_append < 0:
-        raise ValueError(f"input has {x.ndim} dims but target_dims is {target_dims}, which is less")
+    assert dims_to_append >= 0, "append_dims: input dims less than target_dims"
     for i in range(dims_to_append):
         x = x[..., None]
     return x

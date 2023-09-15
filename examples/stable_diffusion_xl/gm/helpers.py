@@ -188,6 +188,7 @@ def load_model_from_config(model_config, ckpts=None, verbose=True, amp_level="O0
         print(f"Warning: Loading model from {ckpts}")
 
     auto_mixed_precision(model, amp_level=amp_level)
+    model.reset_auto_mix_precision()
     model.set_train(False)
     return model
 

@@ -14,7 +14,7 @@ from gm.helpers import (
     save_checkpoint,
     set_default,
 )
-from gm.util import get_obj_from_str, instantiate_from_config
+from gm.util import get_obj_from_str, instantiate_from_config, Trainer
 from omegaconf import OmegaConf
 
 import mindspore as ms
@@ -110,10 +110,36 @@ def train(args):
     )
     reducer = get_grad_reducer(is_parallel=False, parameters=optimizer.parameters)
     scaler = get_loss_scaler(ms_loss_scaler="static", scale_value=1024)
-    train_step_fn = partial(
-        model.train_step,
-        grad_func=model.get_grad_func(optimizer, reducer, scaler, jit=True),
-    )
+    # train_step_fn = partial(
+    #     model.train_step,
+    #     grad_func=model.get_grad_func(optimizer, reducer, scaler, jit=True),
+    # )
+    #
+    # trainer = Trainer(model, optimizer, reducer, scaler)
+    #
+    from gm.util.trainer_factory import TrainNetwork, TrainOneStepSubCell
+    from mindspore import ops
+    train_network = TrainNetwork(model, scaler)
+    train_one_step_sub_cell = TrainOneStepSubCell(train_network, optimizer, reducer, scaler)
+    # @ms.jit
+    def train_step_fn(x, tokens):
+        # get latent
+        x = model.encode_first_stage(x)
+        print("Encoder Done.")
+        context, y = model.conditioner(tokens)
+        print("Conditioner Done.")
+
+        sigmas = model.sigma_sampler(x.shape[0])
+        noise = ops.randn_like(x)
+        noised_input = model.loss_fn.get_noise_input(x, noise, sigmas)
+        w = model.denoiser.w(sigmas)
+
+        # get loss
+        print("Compute Loss Starting...")
+        loss, _, _ = train_one_step_sub_cell(x, noised_input, sigmas, w, context=context, y=y)
+        print("Compute Loss Done.")
+
+        return loss
 
     # Start Training
     if args.task == "txt2img":
@@ -143,7 +169,10 @@ def train_txt2img(args, train_step_fn, dataloader, optimizer=None, model=None): 
                 "You can come back later :).",
                 flush=True,
             )
-        loss = train_step_fn(data)
+
+        x = data[model.input_key]
+        tokens = model.conditioner.tokenize(data)
+        loss = train_step_fn(x, tokens)
 
         # Print meg
         if (i + 1) % args.log_interval == 0 and args.rank % 8 == 0:

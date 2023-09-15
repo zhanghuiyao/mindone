@@ -19,7 +19,7 @@ class Denoiser(nn.Cell):
         return c_noise
 
     def w(self, sigma):
-        return self.weighting(sigma)
+        return self.weighting.weighting(sigma)
 
     def construct(self, sigma, input_dim):
         sigma = ops.cast(sigma, ms.float32)

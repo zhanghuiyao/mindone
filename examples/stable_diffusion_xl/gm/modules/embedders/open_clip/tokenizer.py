@@ -162,7 +162,7 @@ def decode(output_ids: Tensor):
     return _tokenizer.decode(output_ids)
 
 
-def tokenize(texts: Union[str, List[str]], context_length: int = 77) -> Tensor:
+def tokenize(texts: Union[str, List[str]], context_length: int = 77) -> np.ndarray:
     """
     Returns the tokenized representation of given input string(s)
 
@@ -191,4 +191,4 @@ def tokenize(texts: Union[str, List[str]], context_length: int = 77) -> Tensor:
             tokens[-1] = eot_token
         result[i, : len(tokens)] = np.array(tokens, np.int32)
 
-    return Tensor(result, dtype=ms.int32)
+    return result
