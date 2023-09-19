@@ -1,4 +1,5 @@
 # reference to https://github.com/Stability-AI/generative-models
+import numpy as np
 
 from gm.modules.diffusionmodules.util import normalization, zero_module
 from gm.modules.transformers import scaled_dot_product_attention
@@ -377,3 +378,238 @@ class SpatialTransformer(nn.Cell):
         if not self.use_linear:
             x = self.proj_out(x)
         return x + x_in
+
+
+####### Dense Diffusion Layers #######
+# LAYER_COUNT = 0
+
+# sreg, creg, creg_maps, sreg_maps, reg_sizes, text_cond, sample_steps
+class CrossAttentionDenseDiff(CrossAttention):
+    # def __init__(self, *args, **kwargs):
+    #     super(CrossAttentionDenseDiff, self).__init__(*args, **kwargs)
+    #     global LAYER_COUNT
+    #     self.layer_count = LAYER_COUNT
+    #     LAYER_COUNT += 1
+
+    def construct(self, x, context=None, mask=None, additional_tokens=None, **kwargs):
+        sreg, creg, creg_maps, sreg_maps, reg_sizes = \
+            kwargs.get('sreg'), kwargs.get('creg'), kwargs.get('creg_maps'), \
+            kwargs.get('sreg_maps'), kwargs.get('reg_sizes')
+
+        timesteps = kwargs.get('timesteps')[0]
+        _step = kwargs.get('sample_steps')
+        # count = self.layer_count * _step
+
+        sa_ = True if context is None else False
+
+        h = self.heads
+
+        n_tokens_to_mask = 0
+        if additional_tokens is not None:
+            # get the number of masked tokens at the beginning of the output sequence
+            n_tokens_to_mask = additional_tokens.shape[1]
+            # add additional token
+            x = ops.concat((additional_tokens, x), axis=1)
+
+        if context is None:
+            context = x
+        q = self.to_q(x)
+        k = self.to_k(context)
+        v = self.to_v(context)
+
+        # b n (h d) -> b h n d
+        q_b, q_n, _ = q.shape
+        q = q.view(q_b, q_n, h, -1).transpose(0, 2, 1, 3)
+        k_b, k_n, _ = k.shape
+        k = k.view(k_b, k_n, h, -1).transpose(0, 2, 1, 3)
+        v_b, v_n, _ = v.shape
+        v = v.view(v_b, v_n, h, -1).transpose(0, 2, 1, 3)
+
+        # zhy_test
+        # if count / 32 < 50 * 0.3:
+        if _step < 40 * 0.3:
+            sim = ops.zeros((q.shape[0], q.shape[1], q.shape[2], k.shape[2]), dtype=q.dtype)
+            sim += self.scale * ops.matmul(q, k.swapaxes(-2, -1))
+
+            # b h nq nk -> (b h) nq nk
+            sim = sim.view(q.shape[0] * q.shape[1], q.shape[2], k.shape[2])
+
+            treg = ops.pow(ops.cast(timesteps, q.dtype) / 1000., 5)
+
+            ## reg at self-attn
+            if sa_:
+                min_value = sim[sim.shape[0] // 2:].min(-1).unsqueeze(-1)
+                max_value = sim[sim.shape[0] // 2:].max(-1).unsqueeze(-1)
+                mask = sreg_maps[sim.shape[1]].tile((self.heads, 1, 1))
+                size_reg = reg_sizes[sim.shape[1]].tile((self.heads, 1, 1))
+
+                sim[sim.shape[0] // 2:] += (mask > 0).astype(sim.dtype) * size_reg * sreg * treg * \
+                                           (max_value - sim[sim.shape[0] // 2:])
+                sim[sim.shape[0] // 2:] -= (mask <= 0).astype(sim.dtype) * size_reg * sreg * treg * \
+                                           (sim[sim.shape[0] // 2:] - min_value)
+
+            ## reg at cross-attn
+            else:
+                min_value = sim[sim.shape[0] // 2:].min(-1).unsqueeze(-1)
+                max_value = sim[sim.shape[0] // 2:].max(-1).unsqueeze(-1)
+                mask = creg_maps[sim.shape[1]].tile((self.heads, 1, 1))
+                size_reg = reg_sizes[sim.shape[1]].tile((self.heads, 1, 1))
+
+                sim[sim.shape[0] // 2:] += (mask > 0).astype(sim.dtype) * size_reg * creg * treg * \
+                                           (max_value - sim[sim.shape[0] // 2:])
+                sim[sim.shape[0] // 2:] -= (mask <= 0).astype(sim.dtype) * size_reg * creg * treg * \
+                                           (sim[sim.shape[0] // 2:] - min_value)
+
+            # (b h) n d -> b h n d
+            sim = sim.view(q.shape[0], q.shape[1], q.shape[2], k.shape[2])
+
+            attn_weight = ops.softmax(sim, axis=-1)
+            out = ops.matmul(attn_weight, v)
+
+        else:
+            out = scaled_dot_product_attention(q, k, v, attn_mask=mask)  # scale is dim_head ** -0.5 per default
+
+        # b h n d -> b n (h d)
+        b, h, n, d = out.shape
+        out = out.transpose(0, 2, 1, 3).view(b, n, -1)
+
+        if additional_tokens is not None:
+            # remove additional token
+            out = out[:, n_tokens_to_mask:]
+
+        return self.to_out(out)
+
+
+class BasicTransformerBlockDenseDiff(nn.Cell):
+    def __init__(
+        self,
+        dim,
+        n_heads,
+        d_head,
+        dropout=0.0,
+        context_dim=None,
+        gated_ff=True,
+        disable_self_attn=False,
+    ):
+        super().__init__()
+        self.disable_self_attn = disable_self_attn
+        self.attn1 = CrossAttentionDenseDiff(
+            query_dim=dim,
+            heads=n_heads,
+            dim_head=d_head,
+            dropout=dropout,
+            context_dim=context_dim if self.disable_self_attn else None,
+        )  # is a self-attention if not self.disable_self_attn
+        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
+        self.attn2 = CrossAttentionDenseDiff(
+            query_dim=dim,
+            context_dim=context_dim,
+            heads=n_heads,
+            dim_head=d_head,
+            dropout=dropout,
+        )  # is self-attn if context is none
+        self.norm1 = nn.LayerNorm([dim], epsilon=1e-5)
+        self.norm2 = nn.LayerNorm([dim], epsilon=1e-5)
+        self.norm3 = nn.LayerNorm([dim], epsilon=1e-5)
+
+    def construct(self, x, context=None, **kwargs):
+        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None, **kwargs) + x
+        x = self.attn2(self.norm2(x), context=context, **kwargs) + x
+        x = self.ff(self.norm3(x)) + x
+
+        return x
+
+
+class SpatialTransformerDenseDiff(nn.Cell):
+    def __init__(
+        self,
+        in_channels,
+        n_heads,
+        d_head,
+        depth=1,
+        dropout=0.0,
+        context_dim=None,
+        disable_self_attn=False,
+        use_linear=False,
+    ):
+        super().__init__()
+        print(f"constructing {self.__class__.__name__} of depth {depth} w/ {in_channels} channels and {n_heads} heads")
+        from omegaconf import ListConfig
+
+        if exists(context_dim) and not isinstance(context_dim, (list, ListConfig)):
+            context_dim = [context_dim]
+        if exists(context_dim) and isinstance(context_dim, list):
+            if depth != len(context_dim):
+                print(
+                    f"WARNING: {self.__class__.__name__}: Found context dims {context_dim} of depth {len(context_dim)}, "
+                    f"which does not match the specified 'depth' of {depth}. Setting context_dim to {depth * [context_dim[0]]} now."
+                )
+                # depth does not match context dims.
+                assert all(
+                    map(lambda x: x == context_dim[0], context_dim)
+                ), "need homogenous context_dim to match depth automatically"
+                context_dim = depth * [context_dim[0]]
+        elif context_dim is None:
+            context_dim = [None] * depth
+        self.in_channels = in_channels
+        inner_dim = n_heads * d_head
+        self.norm = normalization(in_channels, eps=1e-6)
+        if not use_linear:
+            self.proj_in = nn.Conv2d(
+                in_channels, inner_dim, kernel_size=1, stride=1, padding=0, has_bias=True, pad_mode="valid"
+            )
+        else:
+            self.proj_in = nn.Dense(in_channels, inner_dim)
+
+        self.transformer_blocks = nn.CellList(
+            [
+                BasicTransformerBlockDenseDiff(
+                    inner_dim,
+                    n_heads,
+                    d_head,
+                    dropout=dropout,
+                    context_dim=context_dim[d],
+                    disable_self_attn=disable_self_attn,
+                )
+                for d in range(depth)
+            ]
+        )
+        if not use_linear:
+            self.proj_out = zero_module(
+                nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0, has_bias=True, pad_mode="valid")
+            )
+        else:
+            self.proj_out = zero_module(nn.Dense(inner_dim, in_channels))
+        self.use_linear = use_linear
+
+    def construct(self, x, context=None, **kwargs):
+        # note: if no context is given, cross-attention defaults to self-attention
+        if not isinstance(context, (list, tuple)):
+            context = [context]
+        b, c, h, w = x.shape
+        x_in = x
+        x = self.norm(x)
+        if not self.use_linear:
+            x = self.proj_in(x)
+
+        # b c h w -> b (h w) c
+        x = x.view(*x.shape[:2], -1).transpose(0, 2, 1)
+
+        if self.use_linear:
+            x = self.proj_in(x)
+        for i, block in enumerate(self.transformer_blocks):
+            if i > 0 and len(context) == 1:
+                i = 0  # use same context for each block
+            x = block(x, context=context[i], **kwargs)
+        if self.use_linear:
+            x = self.proj_out(x)
+
+        # b (h w) c -> b c h w
+        x = x.transpose(0, 2, 1)
+        x = x.view(*x.shape[:2], h, w)
+
+        if not self.use_linear:
+            x = self.proj_out(x)
+        return x + x_in
+
+######################################

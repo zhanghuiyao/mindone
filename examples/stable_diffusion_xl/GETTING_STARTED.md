@@ -6,6 +6,7 @@ This document provides a brief introduction to the usage of built-in command-lin
 
 - mindspore 2.1.0
 - openmpi 4.0.3 (for distributed mode)
+- gradio 3.43.2 (for dense diffusion)
 
 To install the dependency, please run
 
@@ -79,11 +80,20 @@ We provide a demo for text-to-image sampling in `demo/sampling_without_streamlit
 
 After obtaining the weights, place them into checkpoints/. Next, start the demo using
 
+1. (Recommend) Run with interactive visualization:
+
 ```shell
-# (recommend) run with streamlit
+# sampling with streamlit
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 streamlit run demo/sampling.py --server.port <your_port>
 
+# DenseDiffusion (⚠️ This function is experimental)
+python demo/sampling_dense_diffusion.py --device_target <your_device>
+```
+
+2. Run with other methods:
+
+```shell
 # run txt2img without streamlit on Ascend
 python demo/sampling_without_streamlit.py \
   --task txt2img \
@@ -113,7 +123,7 @@ python demo/sampling_without_streamlit.py \
   --sd_xl_base_ratios "1.0_768" \
   --device_target Ascend
 
-# run lora(unmerge weight) without streamlit on Ascend
+# run LoRA without streamlit on Ascend
 python demo/sampling_without_streamlit.py \
   --task txt2img \
   --config config/training/sd_xl_base_finetune_lora.yaml \
@@ -121,6 +131,7 @@ python demo/sampling_without_streamlit.py \
   --prompt "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" \
   --device_target Ascend
 ```
+
 
 ### Invisible Watermark Detection
 

@@ -413,7 +413,7 @@ class TextTransformer(nn.Cell):
         return additive_mask
 
     def _repeat(self, t, N: int):
-        return t.reshape(1, 1, -1).repeat(N, 1, 1)
+        return t.reshape(1, 1, -1).tile((N, 1, 1))
 
     def construct(self, text):
         x = self.token_embedding(text)  # [batch_size, n_ctx, d_model]

@@ -110,26 +110,44 @@ class GeneralConditioner(nn.Cell):
                 batch[embedder.input_key][i] = val
         return batch
 
-    def __call__(self, batch: Dict, force_zero_embeddings: Optional[List] = None) -> Dict:
-        output = dict()
-        if force_zero_embeddings is None:
-            force_zero_embeddings = []
+    def tokenize(self, batch: Dict):
+        tokens, lengths = [], []
         for embedder in self.embedders:
             if hasattr(embedder, "input_key") and (embedder.input_key is not None):
                 if embedder.legacy_ucg_val is not None:
                     batch = self.possibly_get_ucg_val(embedder, batch)
-                emb_out = embedder(batch[embedder.input_key])
+                emb_token, emb_length = embedder.tokenize(batch[embedder.input_key])
             elif hasattr(embedder, "input_keys"):
-                emb_out = embedder(*[batch[k] for k in embedder.input_keys])
+                emb_token, emb_length = embedder.tokenize(*[batch[k] for k in embedder.input_keys])
             else:
                 raise AttributeError("embedder does not have attribute input_key/input_keys.")
 
             assert isinstance(
-                emb_out, (Tensor, list, tuple)
-            ), f"embedders outputs must be tensors or a sequence, but got {type(emb_out)}"
+                emb_token, (Tensor, np.ndarray, list, tuple)
+            ), f"tokens must be Tensor, np.ndarray or a sequence, but got {type(emb_token)}"
+            assert isinstance(
+                emb_length, (np.ndarray, type(None))
+            ), f"length must be np.ndarray or None, but got {type(emb_token)}"
+
+            tokens.append(emb_token)
+            lengths.append(emb_length)
+        return tokens, lengths
+
+    def embedding(self, tokens, force_zero_embeddings: Optional[List] = None) -> Dict:
+
+        assert len(tokens) == len(self.embedders)
+
+        output = {}
+        if force_zero_embeddings is None:
+            force_zero_embeddings = []
+        for i in range(len(self.embedders)):
+            embedder = self.embedders[i]
+            token = tokens[i]
+            token = token if isinstance(token, (list, tuple)) else (token,)
+            emb_out = embedder(*token)
 
             if not isinstance(emb_out, (list, tuple)):
-                emb_out = [emb_out]
+                emb_out = (emb_out,)
             for emb in emb_out:
                 out_key = self.OUTPUT_DIM2KEYS[emb.dim()]
                 if embedder.ucg_rate > 0.0 and embedder.legacy_ucg_val is None:
@@ -147,6 +165,16 @@ class GeneralConditioner(nn.Cell):
                 else:
                     output[out_key] = emb
         return output
+
+    def __call__(self, batch: Dict, force_zero_embeddings: Optional[List] = None) -> Dict:
+        # tokenize
+        tokens, _ = self.tokenize(batch)
+        tokens = [Tensor(t) for t in tokens]
+
+        # embeddings
+        embeddings = self.embedding(tokens, force_zero_embeddings)
+
+        return embeddings
 
     def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None):
         if force_uc_zero_embeddings is None:
@@ -201,7 +229,7 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
         for _, p in self.parameters_and_names():
             p.requires_grad = False
 
-    def construct(self, text):
+    def tokenize(self, text):
         batch_encoding = self.tokenizer(
             text,
             truncation=True,
@@ -210,8 +238,11 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
             return_overflowing_tokens=False,
             padding="max_length",
         )
-        tokens = Tensor(np.array(batch_encoding["input_ids"]), ms.int32)
+        tokens = np.array(batch_encoding["input_ids"], np.int32)
+        length = np.array(batch_encoding['length'], np.int32)
+        return tokens, length
 
+    def construct(self, tokens):
         (last_hidden_state, pooler_output, hidden_states, attentions) = self.embedding(
             input_ids=tokens, output_hidden_states=(self.layer == "hidden")
         )
@@ -275,8 +306,13 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
         for _, p in self.parameters_and_names():
             p.requires_grad = False
 
-    def construct(self, text):
-        tokens = openclip_tokenize(text)
+    def tokenize(self, text):
+        tokens, lengths = openclip_tokenize(text)
+        tokens = np.array(tokens, dtype=np.int32)
+        lengths = np.array(lengths, dtype=np.int32)
+        return tokens, lengths
+
+    def construct(self, tokens):
         z = self.encode_with_transformer(tokens)
         if not self.return_pooled and self.legacy:
             return z
@@ -329,6 +365,9 @@ class ConcatTimestepEmbedderND(AbstractEmbModel):
         super().__init__()
         self.timestep = Timestep(outdim)
         self.outdim = outdim
+
+    def tokenize(self, x):
+        return x, None
 
     @ms.jit
     def construct(self, x):
