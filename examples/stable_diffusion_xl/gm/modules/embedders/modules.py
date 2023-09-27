@@ -216,7 +216,7 @@ class GeneralConditioner(nn.Cell):
 
         return tokens
 
-    def construct(self, tokens: List[Tensor]):
+    def construct(self, *tokens):
         output = {}
         for i in range(len(self.embedders)):
             embedder = self.embedders[i]

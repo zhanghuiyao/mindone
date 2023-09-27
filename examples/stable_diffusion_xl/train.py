@@ -126,7 +126,7 @@ def train(args):
         # get latent
         x = model.encode_first_stage(x)
         print("Encoder Done.")
-        context, y = model.conditioner(tokens)
+        context, y = model.conditioner(tokens[0], tokens[1], tokens[2], tokens[3], tokens[4])
         print("Conditioner Done.")
 
         sigmas = model.sigma_sampler(x.shape[0])
@@ -172,6 +172,8 @@ def train_txt2img(args, train_step_fn, dataloader, optimizer=None, model=None): 
 
         x = data[model.input_key]
         tokens = model.conditioner.tokenize(data)
+        if args.version == "SDXL-refiner-1.0":
+            tokens.append(None)
         loss = train_step_fn(x, tokens)
 
         # Print meg
