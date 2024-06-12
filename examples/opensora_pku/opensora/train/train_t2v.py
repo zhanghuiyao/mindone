@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import ast
 
 import yaml
 
@@ -22,6 +23,8 @@ from opensora.models.diffusion.latte.net_with_loss import DiffusionWithLoss
 from opensora.models.text_encoder.t5 import T5Embedder
 from opensora.train.commons import create_loss_scaler, init_env, parse_args
 from opensora.utils.utils import get_precision
+from opensora.acceleration.parallel_states import get_sequence_parallel_state, hccl_info
+from opensora.acceleration.adamw_zero1 import AdamWeightDecayZeRO1
 
 from mindone.trainers.callback import EvalSaveCallback, OverflowMonitor, ProfilerCallback
 from mindone.trainers.checkpoint import resume_train_network
@@ -70,6 +73,7 @@ def main(args):
         global_bf16=args.global_bf16,
         strategy_ckpt_save_file=os.path.join(args.output_dir, "src_strategy.ckpt") if save_src_strategy else "",
         optimizer_weight_shard_size=args.optimizer_weight_shard_size,
+        sp_size=args.sp_size
     )
     set_logger(output_dir=args.output_dir, rank=rank_id, log_level=eval(args.log_level))
     if args.use_deepspeed:
@@ -233,8 +237,8 @@ def main(args):
         ds_config,
         batch_size=args.batch_size,
         shuffle=True,
-        device_num=device_num,
-        rank_id=rank_id,
+        device_num=device_num if not get_sequence_parallel_state() else (device_num // hccl_info.world_size),
+        rank_id=rank_id if not get_sequence_parallel_state() else hccl_info.group_id,
         num_parallel_workers=args.num_parallel_workers,
         max_rowsize=args.max_rowsize,
     )
@@ -278,14 +282,31 @@ def main(args):
 
     # build optimizer
     assert args.optim.lower() == "adamw", f"Not support optimizer {args.optim}!"
-    optimizer = AdamW(
-        latent_diffusion_with_loss.trainable_params(),
-        learning_rate=lr,
-        beta1=args.betas[0],
-        beta2=args.betas[1],
-        eps=args.optim_eps,
-        weight_decay=args.weight_decay,
-    )
+    if get_sequence_parallel_state() and args.sp_enable_zero1:
+        assert args.parallel_mode == "data"
+        if device_num >= 8 and device_num % 8 == 0:
+            _shard_size = 8
+        else:
+            _shard_size = device_num
+        optimizer = AdamWeightDecayZeRO1(
+            latent_diffusion_with_loss.trainable_params(),
+            learning_rate=lr,
+            beta1=args.betas[0],
+            beta2=args.betas[1],
+            eps=args.optim_eps,
+            weight_decay=args.weight_decay,
+            shard_size=_shard_size
+        )
+        print(f"optimizer parallelism: adamw shard size setting to {_shard_size}")
+    else:
+        optimizer = AdamW(
+            latent_diffusion_with_loss.trainable_params(),
+            learning_rate=lr,
+            beta1=args.betas[0],
+            beta2=args.betas[1],
+            eps=args.optim_eps,
+            weight_decay=args.weight_decay,
+        )
 
     loss_scaler = create_loss_scaler(args)
     # resume ckpt
@@ -495,6 +516,8 @@ def parse_t2v_train_args(parser):
         action="store_true",
         help="enable random flip video (disable it to avoid motion direction and text mismatch)",
     )
+    parser.add_argument("--sp_size", type=int, default=1, help="For sequence parallel")
+    parser.add_argument("--sp_enable_zero1", type=ast.literal_eval, default=False, help="For sequence parallel")
     return parser
 
 
