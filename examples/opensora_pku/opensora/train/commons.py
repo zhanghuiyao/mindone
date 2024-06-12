@@ -13,6 +13,8 @@ from mindspore.nn.wrap.loss_scale import DynamicLossScaleUpdateCell
 from mindone.utils.config import str2bool
 from mindone.utils.seed import set_random_seed
 
+from opensora.acceleration.parallel_states import initialize_sequence_parallel_state
+
 logger = logging.getLogger()
 
 
@@ -28,6 +30,7 @@ def init_env(
     global_bf16: bool = False,
     strategy_ckpt_save_file: str = "",
     optimizer_weight_shard_size: int = 8,
+    sp_size: int = 1,
 ) -> Tuple[int, int, int]:
     """
     Initialize MindSpore environment.
@@ -100,6 +103,11 @@ def init_env(
         ms.set_context(
             ascend_config={"precision_mode": "allow_mix_precision_bf16"}
         )  # reset ascend precison mode globally
+
+    assert device_num >= sp_size and device_num % sp_size == 0, f"unable to use sequence parallelism, " \
+                                                                f"device num: {device_num}, sp size: {sp_size}"
+    initialize_sequence_parallel_state(sp_size)
+
     return rank_id, device_num
 
 
