@@ -1,4 +1,6 @@
 from opensora.acceleration.parallel_states import hccl_info
+
+import mindspore as ms
 from mindspore import ops, nn, Tensor
 
 class _SingleAll2ALL(nn.Cell):
@@ -89,11 +91,14 @@ def prepare_parallel_data(hidden_states, encoder_hidden_states, attention_mask, 
         if padding_needed > 0:
             print("Doing video padding")
             # B, C, T, H, W -> B, C, T', H, W
-            video_states = ops.pad(video_states, (0, 0, 0, 0, 0, padding_needed), mode='constant', value=0)
+            _dtype = video_states.dtype
+            video_states = ops.pad(video_states.astype(ms.float32),
+                                   (0, 0, 0, 0, 0, padding_needed), mode='constant', value=0).astype(_dtype)
             if attention_mask is not None:
                 # B, T, H, W -> B, T', H, W
-                video_attention_mask = ops.pad(video_attention_mask, (0, 0, 0, 0, 0, padding_needed), mode='constant',
-                                               value=0)
+                _dtype = video_attention_mask.dtype
+                video_attention_mask = ops.pad(video_attention_mask.astype(ms.float32), (0, 0, 0, 0, 0, padding_needed), mode='constant',
+                                               value=0).astype(_dtype)
 
         video_states, video_encoder_states, video_encoder_attention_mask = \
             video_states, \
@@ -115,15 +120,19 @@ def prepare_parallel_data(hidden_states, encoder_hidden_states, attention_mask, 
         # 2. for image states
         padding_needed = (sp_size - image_states.shape[2] % sp_size) % sp_size
         if padding_needed > 0:
-            image_states = ops.pad(image_states, (0, 0, 0, 0, 0, padding_needed), mode='constant', value=0)
-            image_encoder_states = ops.pad(image_encoder_states, (0, 0, 0, 0, 0, padding_needed), mode='constant',
-                                           value=0)
-            image_encoder_attention_mask = ops.pad(image_encoder_attention_mask, (0, 0, 0, padding_needed),
-                                                   mode='constant',
-                                                   value=0)
+            _dtype_1, _dtype_2, _dtype_3 = \
+                image_states.dtype, image_encoder_states.dtype, image_encoder_attention_mask.dtype
+            image_states = ops.pad(image_states.astype(ms.float32),
+                                   (0, 0, 0, 0, 0, padding_needed), mode='constant', value=0).astype(_dtype_1)
+
+            image_encoder_states = ops.pad(image_encoder_states.astype(ms.float32),
+                                           (0, 0, 0, 0, 0, padding_needed), mode='constant', value=0).astype(_dtype_2)
+            image_encoder_attention_mask = ops.pad(image_encoder_attention_mask.astype(ms.float32),
+                                                   (0, 0, 0, padding_needed), mode='constant', value=0).astype(_dtype_3)
             if attention_mask is not None:
-                image_attention_mask = ops.pad(image_attention_mask, (0, 0, 0, 0, 0, padding_needed), mode='constant',
-                                               value=0)
+                _dtype = image_attention_mask.dtype
+                image_attention_mask = ops.pad(image_attention_mask.astype(ms.float32),
+                                               (0, 0, 0, 0, 0, padding_needed), mode='constant', value=0).astype(_dtype)
 
         assert image_states.shape[2] % sp_size == 0
         assert image_encoder_states.shape[1] % sp_size == 0

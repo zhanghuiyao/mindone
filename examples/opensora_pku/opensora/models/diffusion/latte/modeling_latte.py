@@ -282,7 +282,7 @@ class LatteT2V(ModelMixin, ConfigMixin):
         )
 
         if self.use_recompute:
-            for block in self.blocks:
+            for block in self.blocks[1:]:
                 self.recompute(block)
 
         self.maxpool2d = nn.MaxPool2d(
@@ -469,8 +469,13 @@ class LatteT2V(ModelMixin, ConfigMixin):
         else:
             temp_pos_embed = self.temp_pos_embed[:self.video_length].unsqueeze(0)
             if temp_pos_embed.shape[1] != frame:
+                temp_pos_embed_dtype = temp_pos_embed.dtype
                 temp_pos_embed = ops.pad(
-                    temp_pos_embed, (0, 0, 0, frame - temp_pos_embed.shape[1]), mode='constant', value=0)
+                    temp_pos_embed.astype(ms.float32),
+                    (0, 0, 0, frame - temp_pos_embed.shape[1]),
+                    mode='constant',
+                    value=0
+                ).astype(temp_pos_embed_dtype)
 
         temp_attention_mask = None
 
