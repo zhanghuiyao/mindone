@@ -297,6 +297,9 @@ class MultiHeadAttention(nn.Cell):
                 dim_head=dim_head, attn_drop=attn_drop, upcast_attention=upcast_attention, upcast_softmax=upcast_softmax
             )
 
+        # zhy_test
+        self.dump = ops.TensorDump()
+
     def _init_compress(self):
         if len(self.compress_kv_factor) == 2:
             self.sr = nn.Conv2d(
@@ -563,6 +566,11 @@ class MultiHeadAttention(nn.Cell):
                     if mask.shape[-2] == 1:
                         mask = mask.repeat(q.shape[-2], axis=-2)
 
+                # zhy_test
+                self.dump("q_sp", q)  # (b, h // sp, f, d)
+                self.dump("k_sp", k)
+                self.dump("v_sp", v)
+
                 out = self.flash_attention(q, k, v, mask)
                 b, h_, n, d = out.shape
                 out = out.transpose(0, 2, 1, 3).view(-1, h_, d)
@@ -571,6 +579,10 @@ class MultiHeadAttention(nn.Cell):
                 # (b * f // sp, h, d) --> 【b, f // sp, h * d】 --> (f // sp, b, h * d)
                 # out = self.alltoall_sbh_out(out).view(-1, batch_size, h_size)
                 out = self.alltoall_sbh_out(out).view(batch_size, -1, h_size).swapaxes(0, 1)
+
+                # zhy_test
+                self.dump("out_sp", out)  # (f // sp, b, h * d)
+
             else:
                 q = (
                     q.view(-1, q_b, h // self.sp_size, head_dim)
@@ -627,10 +639,19 @@ class MultiHeadAttention(nn.Cell):
                     if mask.shape[-2] == 1:
                         mask = mask.repeat(q_n, axis=-2)
 
+                # zhy_test
+                self.dump("q_no_sp", q)  # (b, h, f, d)
+                self.dump("k_no_sp", k)
+                self.dump("v_no_sp", v)
+
                 out = self.flash_attention(q, k, v, mask)
                 b, h, n, d = out.shape
                 # reshape FA output to original attn input format, (b h n d) -> (b n h*d)
                 out = out.transpose(0, 2, 1, 3).view(b, n, -1)
+
+                # zhy_test
+                self.dump("out_no_sp", out)  # (b, f, h * d)
+
             else:
                 # (b, n, h*d) -> (b*h, n, d)
                 q = self._rearange_in(q, h)
