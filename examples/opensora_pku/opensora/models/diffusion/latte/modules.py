@@ -529,8 +529,8 @@ class MultiHeadAttention(nn.Cell):
 
         if self.layout == "SBH":
             q_f, q_b, _ = q.shape
-            k_f, k_b, _ = q.shape
-            v_f, v_b, _ = q.shape
+            k_f, k_b, _ = k.shape  # FIXME: zhy_test 1
+            v_f, v_b, _ = v.shape  # FIXME: zhy_test 1
 
             q = q.view(-1, h, head_dim)  # [s // sp, b, h * d] -> [s // sp * b, h, d]
             k = k.view(-1, h, head_dim)
@@ -566,7 +566,11 @@ class MultiHeadAttention(nn.Cell):
                 out = self.flash_attention(q, k, v, mask)
                 b, h_, n, d = out.shape
                 out = out.transpose(0, 2, 1, 3).view(-1, h_, d)
-                out = self.alltoall_sbh_out(out).view(-1, batch_size, h_size)
+
+                # FIXME: zhy_test 2
+                # (b * f // sp, h, d) --> 【b, f // sp, h * d】 --> (f // sp, b, h * d)
+                # out = self.alltoall_sbh_out(out).view(-1, batch_size, h_size)
+                out = self.alltoall_sbh_out(out).view(batch_size, -1, h_size).swapaxes(0, 1)
             else:
                 q = (
                     q.view(-1, q_b, h // self.sp_size, head_dim)
