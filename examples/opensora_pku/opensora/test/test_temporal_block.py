@@ -1,7 +1,13 @@
 
+import os, sys
+
 import numpy as np
 import mindspore as ms
 from mindspore import ops, nn, Tensor
+
+mindone_lib_path = os.path.abspath("../../")
+sys.path.insert(0, mindone_lib_path)
+sys.path.append(os.path.abspath("./"))
 
 from opensora.test.init_env import init_env
 from opensora.models.diffusion.latte.modules import BasicTransformerBlock_
