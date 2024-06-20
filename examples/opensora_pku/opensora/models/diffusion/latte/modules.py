@@ -1305,13 +1305,13 @@ class BasicTransformerBlock_(nn.Cell):
         # 0. Self-Attention
 
         # zhy_test
-        self.dump("temporal_block_input__hidden_states", hidden_states)
+        self.dump("temporal_block_input__hidden_states", hidden_states.to(ms.float32))
         if attention_mask is not None:
-            self.dump("temporal_block_input__attention_mask", attention_mask)
+            self.dump("temporal_block_input__attention_mask", attention_mask.to(ms.float32))
         if encoder_hidden_states is not None:
-            self.dump("temporal_block_input__encoder_hidden_states", encoder_hidden_states)
+            self.dump("temporal_block_input__encoder_hidden_states", encoder_hidden_states.to(ms.float32))
         if encoder_attention_mask is not None:
-            self.dump("temporal_block_input__encoder_attention_mask", encoder_attention_mask)
+            self.dump("temporal_block_input__encoder_attention_mask", encoder_attention_mask.to(ms.float32))
         if timestep is not None:
             self.dump("temporal_block_input__timestep", timestep)
         if class_labels is not None:
@@ -1320,8 +1320,8 @@ class BasicTransformerBlock_(nn.Cell):
             self.dump("temporal_block_input__position_q", position_q)
         if position_k is not None:
             self.dump("temporal_block_input__position_k", position_k)
-        print(f"temporal_block_input__cross_attention_kwargs: {cross_attention_kwargs}", flush=True)
-        print(f"temporal_block_input__frame: {frame}", flush=True)
+        print(f"temporal_block_input__cross_attention_kwargs: {cross_attention_kwargs}")
+        print(f"temporal_block_input__frame: {frame}")
 
 
         gate_msa, shift_mlp, scale_mlp, gate_mlp = None, None, None, None
@@ -1366,9 +1366,9 @@ class BasicTransformerBlock_(nn.Cell):
 
 
         # zhy_test
-        self.dump("temporal_block_MHA1_input__norm_hidden_states", norm_hidden_states)
+        self.dump("temporal_block_MHA1_input__norm_hidden_states", norm_hidden_states.to(ms.float32))
         if self.only_cross_attention and encoder_hidden_states is not None:
-            self.dump("temporal_block_input_MHA1__encoder_hidden_states", encoder_hidden_states)
+            self.dump("temporal_block_input_MHA1__encoder_hidden_states", encoder_hidden_states.to(ms.float32))
         if attention_mask is not None:
             self.dump("temporal_block_MHA1_input__attention_mask", attention_mask)
         print(f"temporal_block_input_MHA1__self.only_cross_attention: {self.only_cross_attention}")
