@@ -1185,6 +1185,34 @@ class BasicTransformerBlock_(nn.Cell):
         FA_dtype=ms.bfloat16,
     ):
         super().__init__()
+
+        # zhy_test
+        print(f"=============================temporal_block_init=============================", flush=True)
+        print(f"temporal_block_init__dim: {dim}", flush=True)
+        print(f"temporal_block_init__num_attention_heads: {num_attention_heads}", flush=True)
+        print(f"temporal_block_init__attention_head_dim: {attention_head_dim}", flush=True)
+        print(f"temporal_block_init__dropout: {dropout}", flush=True)
+        print(f"temporal_block_init__cross_attention_dim: {cross_attention_dim}", flush=True)
+        print(f"temporal_block_init__activation_fn: {activation_fn}", flush=True)
+        print(f"temporal_block_init__num_embeds_ada_norm: {num_embeds_ada_norm}", flush=True)
+        print(f"temporal_block_init__attention_bias: {attention_bias}", flush=True)
+        print(f"temporal_block_init__only_cross_attention: {only_cross_attention}", flush=True)
+        print(f"temporal_block_init__double_self_attention: {double_self_attention}", flush=True)
+        print(f"temporal_block_init__upcast_attention: {upcast_attention}", flush=True)
+        print(f"temporal_block_init__norm_elementwise_affine: {norm_elementwise_affine}", flush=True)
+        print(f"temporal_block_init__norm_type: {norm_type}", flush=True)
+        print(f"temporal_block_init__norm_eps: {norm_eps}", flush=True)
+        print(f"temporal_block_init__final_dropout: {final_dropout}", flush=True)
+        print(f"temporal_block_init__attention_type: {attention_type}", flush=True)
+        print(f"temporal_block_init__positional_embeddings: {positional_embeddings}", flush=True)
+        print(f"temporal_block_init__num_positional_embeddings: {num_positional_embeddings}", flush=True)
+        print(f"temporal_block_init__enable_flash_attention: {enable_flash_attention}", flush=True)
+        print(f"temporal_block_init__use_rope: {use_rope}", flush=True)
+        print(f"temporal_block_init__rope_scaling: {rope_scaling}", flush=True)
+        print(f"temporal_block_init__compress_kv_factor: {compress_kv_factor}", flush=True)
+        print(f"temporal_block_init__FA_dtype: {FA_dtype}", flush=True)
+        print(f"=======================================================================", flush=True)
+
         self.only_cross_attention = only_cross_attention
 
         self.use_ada_layer_norm_zero = (num_embeds_ada_norm is not None) and norm_type == "ada_norm_zero"
@@ -1252,6 +1280,9 @@ class BasicTransformerBlock_(nn.Cell):
         self._chunk_size = None
         self._chunk_dim = 0
 
+        # zhy_test
+        self.dump = ops.TensorDump()
+
     def set_chunk_feed_forward(self, chunk_size: Optional[int], dim: int):
         # Sets chunk feed-forward
         self._chunk_size = chunk_size
@@ -1272,6 +1303,20 @@ class BasicTransformerBlock_(nn.Cell):
     ) -> ms.Tensor:
         # Notice that normalization is always applied before the real computation in the following blocks.
         # 0. Self-Attention
+
+        # zhy_test
+        self.dump("temporal_block_input__hidden_states", hidden_states)
+        if attention_mask is not None:
+            self.dump("temporal_block_input__attention_mask", attention_mask)
+        self.dump("temporal_block_input__encoder_hidden_states", encoder_hidden_states)
+        self.dump("temporal_block_input__encoder_attention_mask", encoder_attention_mask)
+        self.dump("temporal_block_input__timestep", timestep)
+        self.dump("temporal_block_input__class_labels", class_labels)
+        self.dump("temporal_block_input__position_q", position_q)
+        self.dump("temporal_block_input__position_k", position_k)
+        print(f"temporal_block_input__cross_attention_kwargs: {cross_attention_kwargs}", flush=True)
+        print(f"temporal_block_input__frame: {frame}", flush=True)
+
 
         gate_msa, shift_mlp, scale_mlp, gate_mlp = None, None, None, None
         if self.use_ada_layer_norm:
@@ -1312,6 +1357,17 @@ class BasicTransformerBlock_(nn.Cell):
             # del cross_attention_kwargs["gligen"]
         else:
             gligen_kwargs = None
+
+
+        # zhy_test
+        self.dump("temporal_block_MHA1_input__norm_hidden_states", norm_hidden_states)
+        if self.only_cross_attention:
+            self.dump("temporal_block_input_MHA1__encoder_hidden_states", encoder_hidden_states)
+        if attention_mask is not None:
+            self.dump("temporal_block_MHA1_input__attention_mask", attention_mask)
+        print(f"temporal_block_input_MHA1__self.only_cross_attention: {self.only_cross_attention}")
+
+
         attn_output = self.attn1(
             norm_hidden_states,
             encoder_hidden_states=encoder_hidden_states if self.only_cross_attention else None,
