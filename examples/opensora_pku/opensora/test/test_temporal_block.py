@@ -39,18 +39,17 @@ if __name__ == '__main__':
     )
 
     # 2. load input
-    hidden_states = Tensor(np.load("0_tem_b_in_0_hidden_states.npy"))
-    attention_mask = Tensor(np.load("xxx.npy"))
-    encoder_hidden_states = Tensor(np.load("xxx.npy"))
-    encoder_attention_mask = Tensor(np.load("xxx.npy"))
-    timestep = Tensor(np.load("xxx.npy"))
-    class_labels = Tensor(np.load("xxx.npy"))
-    position_q = Tensor(np.load("xxx.npy"))
-    position_k = Tensor(np.load("xxx.npy"))
+    hidden_states = Tensor(np.load("dump_data/step00/0_tem_b_0_hidden_states.npy"))
+    timestep = Tensor(np.load("dump_data/step00/1_tem_b_4_timestep.npy"))
+    attention_mask = None
+    encoder_hidden_states = None
+    encoder_attention_mask = None
+    class_labels = None
+    position_q = None
+    position_k = None
 
-    cross_attention_kwargs = {xxx: xxx}
-    frame = int(xxx)
-
+    cross_attention_kwargs = None
+    frame = 9
 
     # 3. run
     out = temporal_block(
@@ -65,4 +64,10 @@ if __name__ == '__main__':
         position_k,
         (frame,),
     )
+
+    print(f"out.shape: {out.shape}")
+    print(f"out.mean: {out.mean()}")
+    print(f"out.min: {out.min()}")
+    print(f"out.max: {out.max()}")
+
 

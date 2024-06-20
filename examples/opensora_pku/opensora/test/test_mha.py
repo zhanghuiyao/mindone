@@ -57,16 +57,16 @@ if __name__ == '__main__':
     )
 
     # 2. load input
-    norm_hidden_states = Tensor(np.load("xxx.npy"))
-    attention_mask = Tensor(np.load("xxx.npy"))
-    position_q = Tensor(np.load("xxx.npy"))
-    position_k = Tensor(np.load("xxx.npy"))
+    norm_hidden_states = Tensor(np.load("dump_data/step00/2_tem_b_MHA1_0_norm_hidden_states.npy"))
+    attention_mask = None
+    position_q = None
+    position_k = None
 
-    cross_attention_kwargs = {xxx: xxx}
-    frame = int(xxx)
+    cross_attention_kwargs = {}
+    frame = int(9)
 
     # 3. run
-    attn_output = attn1(
+    out = attn1(
         norm_hidden_states,
         encoder_hidden_states=None,
         attention_mask=attention_mask,
@@ -75,4 +75,9 @@ if __name__ == '__main__':
         last_shape=frame,
         **cross_attention_kwargs,
     )
+
+    print(f"out.shape: {out.shape}")
+    print(f"out.mean: {out.mean()}")
+    print(f"out.min: {out.min()}")
+    print(f"out.max: {out.max()}")
 
