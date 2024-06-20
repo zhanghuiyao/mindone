@@ -58,7 +58,7 @@ if __name__ == '__main__':
     frame = 9
 
     # 3. run
-    out = temporal_block(
+    temporal_out = temporal_block(
         hidden_states,
         None,  # attention_mask
         None,  # encoder_hidden_states
@@ -71,9 +71,10 @@ if __name__ == '__main__':
         (frame,),
     )
 
-    print(f"out.shape: {out.shape}")
-    print(f"out.mean: {out.mean()}")
-    print(f"out.min: {out.min()}")
-    print(f"out.max: {out.max()}")
+    print(f"input hidden_states.shape: {hidden_states.shape}")
+    print(f"temporal_out.shape: {temporal_out.shape}")
+    print(f"temporal_out.mean: {temporal_out.mean()}")
+    print(f"temporal_out.min: {temporal_out.min()}")
+    print(f"temporal_out.max: {temporal_out.max()}")
 
 
