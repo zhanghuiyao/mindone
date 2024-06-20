@@ -653,6 +653,14 @@ class MultiHeadAttention(nn.Cell):
             if self.use_rope:
                 self.apply_rope(q, k, v, position_q, position_k)
 
+            # zhy_test
+            if hccl_info.rank == 0:
+                if mask is not None:
+                    self.dump("mask_before_no_sp", mask)
+                self.dump("q_before_no_sp", q)  # (b, h, f, d)
+                self.dump("k_before_no_sp", k)
+                self.dump("v_before_no_sp", v)
+
             if self.enable_flash_attention:
                 # reshape qkv shape ((b n h*d) -> (b h n d))and mask dtype for FA input format
                 q = q.view(q_b, q_n, h, -1).transpose(0, 2, 1, 3)
