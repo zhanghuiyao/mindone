@@ -533,8 +533,9 @@ class MultiHeadAttention(nn.Cell):
         if self.layout == "SBH":
 
             # zhy_test
-            self.dump("hidden_states_sp", hidden_states)  # (f, b, N)
-            self.dump("encoder_hidden_states_sp", encoder_hidden_states)
+            if hccl_info.rank == 0:
+                self.dump("hidden_states_sp", hidden_states)  # (f, b, N)
+                self.dump("encoder_hidden_states_sp", encoder_hidden_states)
 
             q_f, q_b, _ = q.shape
             k_f, k_b, _ = k.shape  # FIXME: zhy_test 1
@@ -547,9 +548,10 @@ class MultiHeadAttention(nn.Cell):
             h_size_sp = h_size // self.sp_size
 
             # zhy_test
-            self.dump("q_sp_before_a2a", q)  # (b * f // sp, h, d)
-            self.dump("k_sp_before_a2a", k)
-            self.dump("v_sp_before_a2a", v)
+            if hccl_info.rank == 0:
+                self.dump("q_sp_before_a2a", q)  # (b * f // sp, h, d)
+                self.dump("k_sp_before_a2a", k)
+                self.dump("v_sp_before_a2a", v)
 
             # apply all_to_all to gather sequence and split attention heads [s // sp * b, h, d] -> [s * b, h // sp, d]
             q = self.alltoall_sbh_q(q).view(-1, batch_size, h_size_sp)
@@ -577,9 +579,10 @@ class MultiHeadAttention(nn.Cell):
                         mask = mask.repeat(q.shape[-2], axis=-2)
 
                 # zhy_test
-                self.dump("q_sp", q)  # (b, h // sp, f, d)
-                self.dump("k_sp", k)
-                self.dump("v_sp", v)
+                if hccl_info.rank == 0:
+                    self.dump("q_sp", q)  # (b, h // sp, f, d)
+                    self.dump("k_sp", k)
+                    self.dump("v_sp", v)
 
                 out = self.flash_attention(q, k, v, mask)
                 b, h_, n, d = out.shape
@@ -591,7 +594,8 @@ class MultiHeadAttention(nn.Cell):
                 out = self.alltoall_sbh_out(out).view(batch_size, -1, h_size).swapaxes(0, 1)
 
                 # zhy_test
-                self.dump("out_sp", out)  # (f // sp, b, h * d)
+                if hccl_info.rank == 0:
+                    self.dump("out_sp", out)  # (f // sp, b, h * d)
 
             else:
                 q = (
@@ -628,8 +632,9 @@ class MultiHeadAttention(nn.Cell):
                 out = self.alltoall_sbh_out(out).view(-1, batch_size, h_size)
         else:
             # zhy_test
-            self.dump("hidden_states_no_sp", hidden_states)  # (b, f, N)
-            self.dump("encoder_hidden_states_no_sp", encoder_hidden_states)
+            if hccl_info.rank == 0:
+                self.dump("hidden_states_no_sp", hidden_states)  # (b, f, N)
+                self.dump("encoder_hidden_states_no_sp", encoder_hidden_states)
 
             q_b, q_n, _ = q.shape  # (b n h*d)
             k_b, k_n, _ = k.shape
@@ -654,9 +659,10 @@ class MultiHeadAttention(nn.Cell):
                         mask = mask.repeat(q_n, axis=-2)
 
                 # zhy_test
-                self.dump("q_no_sp", q)  # (b, h, f, d)
-                self.dump("k_no_sp", k)
-                self.dump("v_no_sp", v)
+                if hccl_info.rank == 0:
+                    self.dump("q_no_sp", q)  # (b, h, f, d)
+                    self.dump("k_no_sp", k)
+                    self.dump("v_no_sp", v)
 
                 out = self.flash_attention(q, k, v, mask)
                 b, h, n, d = out.shape
@@ -664,7 +670,8 @@ class MultiHeadAttention(nn.Cell):
                 out = out.transpose(0, 2, 1, 3).view(b, n, -1)
 
                 # zhy_test
-                self.dump("out_no_sp", out)  # (b, f, h * d)
+                if hccl_info.rank == 0:
+                    self.dump("out_no_sp", out)  # (b, f, h * d)
 
             else:
                 # (b, n, h*d) -> (b*h, n, d)
