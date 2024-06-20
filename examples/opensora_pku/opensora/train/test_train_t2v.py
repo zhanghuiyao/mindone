@@ -57,7 +57,7 @@ class TrainOneStepWrapper_nograd(nn.Cell):
     ):
         super().__init__()
         self.network = network
-        self.scale_sense = ms.Parameter(scale_sense, name='scale_sense')
+        self.scale_sense = ms.Parameter(1.0, name='scale_sense')
 
     def construct(self, *inputs):
         # compute loss

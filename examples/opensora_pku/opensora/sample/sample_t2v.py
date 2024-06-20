@@ -344,8 +344,8 @@ if __name__ == "__main__":
         num_parallel_workers=12,
         max_rowsize=32,
         shuffle=False,  # be in order
-        device_num=device_num,
-        rank_id=rank_id,
+        device_num=device_num if not get_sequence_parallel_state() else (device_num // hccl_info.world_size),
+        rank_id=rank_id if not get_sequence_parallel_state() else hccl_info.group_id,
         drop_remainder=False,
     )
     dataset_size = dataset.get_dataset_size()
