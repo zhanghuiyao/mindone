@@ -1324,8 +1324,10 @@ class BasicTransformerBlock_(nn.Cell):
                 self.dump("tem_b_6_position_q", position_q.to(ms.float32))
             if position_k is not None:
                 self.dump("tem_b_7_position_k", position_k.to(ms.float32))
-            print(f"temporal_block_input_8_cross_attention_kwargs: {cross_attention_kwargs}")
-            print(f"temporal_block_input_9_frame: {frame}")
+            print(f"temporal_block_input_8_cross_attention_kwargs: ")
+            print(cross_attention_kwargs)
+            print(f"temporal_block_input_9_frame: ")
+            print(frame)
 
 
         gate_msa, shift_mlp, scale_mlp, gate_mlp = None, None, None, None
@@ -1376,7 +1378,8 @@ class BasicTransformerBlock_(nn.Cell):
                 self.dump("tem_b_MHA1_1_encoder_hidden_states", encoder_hidden_states.to(ms.float32))
             if attention_mask is not None:
                 self.dump("tem_b_MHA1_2_attention_mask", attention_mask)
-            print(f"temporal_block_MHA1_input_3_self.only_cross_attention: {self.only_cross_attention}")
+            print(f"temporal_block_MHA1_input_3_self.only_cross_attention: ")
+            print(self.only_cross_attention)
 
 
         attn_output = self.attn1(
