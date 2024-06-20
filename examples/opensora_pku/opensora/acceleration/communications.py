@@ -18,7 +18,7 @@ class AlltoAll(nn.Cell):
         return x
 
 
-class _SingleAll2ALL(nn.Cell):
+class bak_SingleAll2ALL(nn.Cell):
     def __init__(self, scatter_dim: int, gather_dim: int):
         super(_SingleAll2ALL, self).__init__()
         self.sp_size = hccl_info.world_size
@@ -58,8 +58,8 @@ class _SingleAll2ALL(nn.Cell):
         return output
 
 
-class bak_SingleAll2ALL(nn.Cell):
-    def __init__(self, scatter_dim: int, gather_dim: int):
+class _SingleAll2ALL(nn.Cell):
+    def __init__(self, scatter_dim: int = 1, gather_dim: int = 0):
         super(_SingleAll2ALL, self).__init__()
         self.sp_size = hccl_info.world_size
         self.spg = hccl_info.group
@@ -68,6 +68,25 @@ class bak_SingleAll2ALL(nn.Cell):
         self.alltoall = ops.AlltoAll(split_count=self.sp_size, split_dim=0, concat_dim=0, group=self.spg)
 
     def construct(self, input_: Tensor):
+
+        # for q k v, scatter_dim=1, gather_dim=0
+        # input_: (f // sp * b, h, d)
+        # inp_shape: (f // sp * b, h // sp, d)
+        # input_t: (f // sp * b, h, d)
+        #        : (f // sp * b, sp, h // sp, d)
+        #        : (sp, f // sp * b, h // sp, d)
+        # output : (sp * f // sp * b, h // sp, d)
+        #          (f * b, h // sp, d)
+
+        # for out, scatter_dim=0, gather_dim=1
+        # input_: (b * f, h // sp, d)
+        # inp_shape: (b * f // sp, h // sp, d)
+        # input_t: (b * f, h // sp, d)
+        #        : (sp, b * f // sp, h // sp, d)
+        # output : (b * f // sp, sp, h // sp, d)
+        #        : (b * f // sp, h, d)
+
+
         scatter_dim, gather_dim, sp_size = self.scatter_dim, self.gather_dim, self.sp_size
         inp_shape = list(input_.shape)
         inp_shape[scatter_dim] = inp_shape[scatter_dim] // sp_size
