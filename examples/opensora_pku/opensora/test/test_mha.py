@@ -13,7 +13,7 @@ from opensora.models.diffusion.latte.modules import MultiHeadAttention
 from opensora.acceleration.parallel_states import get_sequence_parallel_state, hccl_info
 
 
-def run_mha_sp(norm_hidden_states):
+def run_mha_sp(norm_hidden_states, init_ckpt=None):
 
     # 0. split input
     # (f, bs * h*w, N) -> (f // sp, bs * h*w, N)
@@ -35,8 +35,9 @@ def run_mha_sp(norm_hidden_states):
         FA_dtype=ms.bfloat16,
         layout="SBH" if get_sequence_parallel_state() else "BSH",
     )
-    param_dict = ms.load_checkpoint("./mha_random_init.ckpt")
+    param_dict = ms.load_checkpoint(init_ckpt)
     ms.load_param_into_net(attn1, param_dict)
+    print(f"attn1 sp layer load checkpoint from `{init_ckpt}` success")
 
     # 2. load input
     norm_hidden_states = norm_hidden_states
@@ -58,16 +59,16 @@ def run_mha_sp(norm_hidden_states):
         **cross_attention_kwargs,
     )
 
-    print(f"input norm_hidden_states.shape: {norm_hidden_states.shape}")
-    print(f"atten_out.shape: {atten_out.shape}")
-    print(f"atten_out.mean: {atten_out.mean()}")
-    print(f"atten_out.min: {atten_out.min()}")
-    print(f"atten_out.max: {atten_out.max()}")
+    print(f"input_sp norm_hidden_states.shape: {norm_hidden_states.shape}")
+    print(f"atten_out_sp.shape: {atten_out.shape}")
+    print(f"atten_out_sp.mean: {atten_out.mean()}")
+    print(f"atten_out_sp.min: {atten_out.min()}")
+    print(f"atten_out_sp.max: {atten_out.max()}")
 
     return atten_out
 
 
-def run_mha_nosp(norm_hidden_states):
+def run_mha_nosp(norm_hidden_states, init_ckpt=None):
 
     # 0. permute input
     # (f, bs * h*w, N) -> (bs * h*w, f, N)
@@ -89,8 +90,9 @@ def run_mha_nosp(norm_hidden_states):
         FA_dtype=ms.bfloat16,
         layout="BSH",
     )
-    param_dict = ms.load_checkpoint("./mha_random_init.ckpt")
+    param_dict = ms.load_checkpoint(init_ckpt)
     ms.load_param_into_net(attn1, param_dict)
+    print(f"attn1 layer load checkpoint from `{init_ckpt}` success")
 
     # 2. load input
     norm_hidden_states = norm_hidden_states
@@ -133,8 +135,9 @@ if __name__ == '__main__':
     )
     norm_hidden_states = Tensor(norm_hidden_states)
 
-    atten_out_sp = run_mha_sp(norm_hidden_states)
-    atten_out = run_mha_nosp(norm_hidden_states).chunk(2, axis=0)[hccl_info.rank%hccl_info.world_size]
+    init_ckpt = "./mha_random_init.ckpt"
+    atten_out_sp = run_mha_sp(norm_hidden_states, init_ckpt)
+    atten_out = run_mha_nosp(norm_hidden_states, init_ckpt).chunk(2, axis=0)[hccl_info.rank%hccl_info.world_size]
 
     atten_out_sp, atten_out = atten_out_sp.asnumpy(), atten_out.asnumpy()
     diff_abs = np.abs(atten_out_sp - atten_out).mean()
@@ -142,5 +145,5 @@ if __name__ == '__main__':
     diff_rel_eps = (np.abs(atten_out_sp - atten_out) / (np.abs(atten_out) + np.abs(atten_out.mean()))).mean()
 
     print(f"diff_abs: {diff_abs}")
-    print(f"diff_rel: {diff_rel}")
-    print(f"diff_rel_eps: {diff_rel_eps}")
+    print(f"diff_rel: {diff_rel * 100:.2f}%")
+    print(f"diff_rel_eps: {diff_rel_eps * 100:.2f}%")
