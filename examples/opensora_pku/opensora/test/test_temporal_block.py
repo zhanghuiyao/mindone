@@ -39,7 +39,7 @@ if __name__ == '__main__':
     )
 
     # 2. load input
-    hidden_states = Tensor(np.load("xxx.npy"))
+    hidden_states = Tensor(np.load("0_tem_b_in_0_hidden_states.npy"))
     attention_mask = Tensor(np.load("xxx.npy"))
     encoder_hidden_states = Tensor(np.load("xxx.npy"))
     encoder_attention_mask = Tensor(np.load("xxx.npy"))

@@ -1187,31 +1187,34 @@ class BasicTransformerBlock_(nn.Cell):
         super().__init__()
 
         # zhy_test
-        print(f"=============================temporal_block_init=============================", flush=True)
-        print(f"temporal_block_init__dim: {dim}", flush=True)
-        print(f"temporal_block_init__num_attention_heads: {num_attention_heads}", flush=True)
-        print(f"temporal_block_init__attention_head_dim: {attention_head_dim}", flush=True)
-        print(f"temporal_block_init__dropout: {dropout}", flush=True)
-        print(f"temporal_block_init__cross_attention_dim: {cross_attention_dim}", flush=True)
-        print(f"temporal_block_init__activation_fn: {activation_fn}", flush=True)
-        print(f"temporal_block_init__num_embeds_ada_norm: {num_embeds_ada_norm}", flush=True)
-        print(f"temporal_block_init__attention_bias: {attention_bias}", flush=True)
-        print(f"temporal_block_init__only_cross_attention: {only_cross_attention}", flush=True)
-        print(f"temporal_block_init__double_self_attention: {double_self_attention}", flush=True)
-        print(f"temporal_block_init__upcast_attention: {upcast_attention}", flush=True)
-        print(f"temporal_block_init__norm_elementwise_affine: {norm_elementwise_affine}", flush=True)
-        print(f"temporal_block_init__norm_type: {norm_type}", flush=True)
-        print(f"temporal_block_init__norm_eps: {norm_eps}", flush=True)
-        print(f"temporal_block_init__final_dropout: {final_dropout}", flush=True)
-        print(f"temporal_block_init__attention_type: {attention_type}", flush=True)
-        print(f"temporal_block_init__positional_embeddings: {positional_embeddings}", flush=True)
-        print(f"temporal_block_init__num_positional_embeddings: {num_positional_embeddings}", flush=True)
-        print(f"temporal_block_init__enable_flash_attention: {enable_flash_attention}", flush=True)
-        print(f"temporal_block_init__use_rope: {use_rope}", flush=True)
-        print(f"temporal_block_init__rope_scaling: {rope_scaling}", flush=True)
-        print(f"temporal_block_init__compress_kv_factor: {compress_kv_factor}", flush=True)
-        print(f"temporal_block_init__FA_dtype: {FA_dtype}", flush=True)
-        print(f"=======================================================================", flush=True)
+        self.enable_dump = False
+        if hccl_info.rank == 0:
+            self.enable_dump = True
+            print(f"=============================temporal_block_init=============================", flush=True)
+            print(f"temporal_block_init__dim: {dim}", flush=True)
+            print(f"temporal_block_init__num_attention_heads: {num_attention_heads}", flush=True)
+            print(f"temporal_block_init__attention_head_dim: {attention_head_dim}", flush=True)
+            print(f"temporal_block_init__dropout: {dropout}", flush=True)
+            print(f"temporal_block_init__cross_attention_dim: {cross_attention_dim}", flush=True)
+            print(f"temporal_block_init__activation_fn: {activation_fn}", flush=True)
+            print(f"temporal_block_init__num_embeds_ada_norm: {num_embeds_ada_norm}", flush=True)
+            print(f"temporal_block_init__attention_bias: {attention_bias}", flush=True)
+            print(f"temporal_block_init__only_cross_attention: {only_cross_attention}", flush=True)
+            print(f"temporal_block_init__double_self_attention: {double_self_attention}", flush=True)
+            print(f"temporal_block_init__upcast_attention: {upcast_attention}", flush=True)
+            print(f"temporal_block_init__norm_elementwise_affine: {norm_elementwise_affine}", flush=True)
+            print(f"temporal_block_init__norm_type: {norm_type}", flush=True)
+            print(f"temporal_block_init__norm_eps: {norm_eps}", flush=True)
+            print(f"temporal_block_init__final_dropout: {final_dropout}", flush=True)
+            print(f"temporal_block_init__attention_type: {attention_type}", flush=True)
+            print(f"temporal_block_init__positional_embeddings: {positional_embeddings}", flush=True)
+            print(f"temporal_block_init__num_positional_embeddings: {num_positional_embeddings}", flush=True)
+            print(f"temporal_block_init__enable_flash_attention: {enable_flash_attention}", flush=True)
+            print(f"temporal_block_init__use_rope: {use_rope}", flush=True)
+            print(f"temporal_block_init__rope_scaling: {rope_scaling}", flush=True)
+            print(f"temporal_block_init__compress_kv_factor: {compress_kv_factor}", flush=True)
+            print(f"temporal_block_init__FA_dtype: {FA_dtype}", flush=True)
+            print(f"=======================================================================", flush=True)
 
         self.only_cross_attention = only_cross_attention
 
@@ -1305,23 +1308,24 @@ class BasicTransformerBlock_(nn.Cell):
         # 0. Self-Attention
 
         # zhy_test
-        self.dump("tem_b_in_0_hidden_states", hidden_states.to(ms.float32))
-        if attention_mask is not None:
-            self.dump("tem_b_in_1_attention_mask", attention_mask.to(ms.float32))
-        if encoder_hidden_states is not None:
-            self.dump("tem_b_in_2_encoder_hidden_states", encoder_hidden_states.to(ms.float32))
-        if encoder_attention_mask is not None:
-            self.dump("tem_b_in_3_encoder_attention_mask", encoder_attention_mask.to(ms.float32))
-        if timestep is not None:
-            self.dump("tem_b_in_4_timestep", timestep.to(ms.float32))
-        if class_labels is not None:
-            self.dump("tem_b_in_5_class_labels", class_labels.to(ms.float32))
-        if position_q is not None:
-            self.dump("tem_b_in_6_position_q", position_q.to(ms.float32))
-        if position_k is not None:
-            self.dump("tem_b_in_7_position_k", position_k.to(ms.float32))
-        print(f"temporal_block_input_8_cross_attention_kwargs: {cross_attention_kwargs}")
-        print(f"temporal_block_input_9_frame: {frame}")
+        if self.enable_dump:
+            self.dump("tem_b_0_hidden_states", hidden_states.to(ms.float32))
+            if attention_mask is not None:
+                self.dump("tem_b_1_attention_mask", attention_mask.to(ms.float32))
+            if encoder_hidden_states is not None:
+                self.dump("tem_b_2_encoder_hidden_states", encoder_hidden_states.to(ms.float32))
+            if encoder_attention_mask is not None:
+                self.dump("tem_b_3_encoder_attention_mask", encoder_attention_mask.to(ms.float32))
+            if timestep is not None:
+                self.dump("tem_b_4_timestep", timestep.to(ms.float32))
+            if class_labels is not None:
+                self.dump("tem_b_5_class_labels", class_labels.to(ms.float32))
+            if position_q is not None:
+                self.dump("tem_b_6_position_q", position_q.to(ms.float32))
+            if position_k is not None:
+                self.dump("tem_b_7_position_k", position_k.to(ms.float32))
+            print(f"temporal_block_input_8_cross_attention_kwargs: {cross_attention_kwargs}")
+            print(f"temporal_block_input_9_frame: {frame}")
 
 
         gate_msa, shift_mlp, scale_mlp, gate_mlp = None, None, None, None
@@ -1366,12 +1370,13 @@ class BasicTransformerBlock_(nn.Cell):
 
 
         # zhy_test
-        self.dump("tem_b_MHA1_in_0_norm_hidden_states", norm_hidden_states.to(ms.float32))
-        if self.only_cross_attention and encoder_hidden_states is not None:
-            self.dump("tem_b_MHA1_in_1_encoder_hidden_states", encoder_hidden_states.to(ms.float32))
-        if attention_mask is not None:
-            self.dump("tem_b_MHA1_in_2_attention_mask", attention_mask)
-        print(f"temporal_block_MHA1_input_3_self.only_cross_attention: {self.only_cross_attention}")
+        if self.enable_dump:
+            self.dump("tem_b_MHA1_0_norm_hidden_states", norm_hidden_states.to(ms.float32))
+            if self.only_cross_attention and encoder_hidden_states is not None:
+                self.dump("tem_b_MHA1_1_encoder_hidden_states", encoder_hidden_states.to(ms.float32))
+            if attention_mask is not None:
+                self.dump("tem_b_MHA1_2_attention_mask", attention_mask)
+            print(f"temporal_block_MHA1_input_3_self.only_cross_attention: {self.only_cross_attention}")
 
 
         attn_output = self.attn1(
