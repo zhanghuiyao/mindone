@@ -580,6 +580,8 @@ class MultiHeadAttention(nn.Cell):
 
                 # zhy_test
                 if hccl_info.rank == 0:
+                    if mask is not None:
+                        self.dump("mask_sp", mask)
                     self.dump("q_sp", q)  # (b, h // sp, f, d)
                     self.dump("k_sp", k)
                     self.dump("v_sp", v)
@@ -664,6 +666,8 @@ class MultiHeadAttention(nn.Cell):
 
                 # zhy_test
                 if hccl_info.rank == 0:
+                    if mask is not None:
+                        self.dump("mask_no_sp", mask)
                     self.dump("q_no_sp", q)  # (b, h, f, d)
                     self.dump("k_no_sp", k)
                     self.dump("v_no_sp", v)
