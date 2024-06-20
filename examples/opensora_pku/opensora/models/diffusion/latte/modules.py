@@ -588,6 +588,10 @@ class MultiHeadAttention(nn.Cell):
                 b, h_, n, d = out.shape
                 out = out.transpose(0, 2, 1, 3).view(-1, h_, d)
 
+                # zhy_test
+                if hccl_info.rank == 0:
+                    self.dump("out_sp_before_all2all", out)  # (b * f, h // sp, d)
+
                 # FIXME: zhy_test 2
                 # (b * f // sp, h, d) --> 【b, f // sp, h * d】 --> (f // sp, b, h * d)
                 # out = self.alltoall_sbh_out(out).view(-1, batch_size, h_size)
