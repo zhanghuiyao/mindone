@@ -1313,13 +1313,13 @@ class BasicTransformerBlock_(nn.Cell):
         if encoder_attention_mask is not None:
             self.dump("temporal_block_input__encoder_attention_mask", encoder_attention_mask.to(ms.float32))
         if timestep is not None:
-            self.dump("temporal_block_input__timestep", timestep)
+            self.dump("temporal_block_input__timestep", timestep.to(ms.float32))
         if class_labels is not None:
-            self.dump("temporal_block_input__class_labels", class_labels)
+            self.dump("temporal_block_input__class_labels", class_labels.to(ms.float32))
         if position_q is not None:
-            self.dump("temporal_block_input__position_q", position_q)
+            self.dump("temporal_block_input__position_q", position_q.to(ms.float32))
         if position_k is not None:
-            self.dump("temporal_block_input__position_k", position_k)
+            self.dump("temporal_block_input__position_k", position_k.to(ms.float32))
         print(f"temporal_block_input__cross_attention_kwargs: {cross_attention_kwargs}")
         print(f"temporal_block_input__frame: {frame}")
 
