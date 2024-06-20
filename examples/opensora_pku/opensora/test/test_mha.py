@@ -35,8 +35,8 @@ def run_mha_sp(norm_hidden_states):
         FA_dtype=ms.bfloat16,
         layout="SBH" if get_sequence_parallel_state() else "BSH",
     )
-    # zhy_test
-    ms.save_checkpoint(attn1, "./mha_random_init.ckpt")
+    param_dict = ms.load_checkpoint("./mha_random_init.ckpt")
+    ms.load_param_into_net(attn1, param_dict)
 
     # 2. load input
     norm_hidden_states = norm_hidden_states
@@ -89,6 +89,8 @@ def run_mha_nosp(norm_hidden_states):
         FA_dtype=ms.bfloat16,
         layout="BSH",
     )
+    param_dict = ms.load_checkpoint("./mha_random_init.ckpt")
+    ms.load_param_into_net(attn1, param_dict)
 
     # 2. load input
     norm_hidden_states = norm_hidden_states
@@ -141,3 +143,4 @@ if __name__ == '__main__':
 
     print(f"diff_abs: {diff_abs}")
     print(f"diff_rel: {diff_rel}")
+    print(f"diff_rel_eps: {diff_rel_eps}")
