@@ -55,7 +55,7 @@ def run_mha_sp(norm_hidden_states, init_ckpt=None):
         attention_mask=attention_mask,
         position_q=position_q,
         position_k=position_k,
-        last_shape=frame,
+        last_shape=(frame,),
         **cross_attention_kwargs,
     )
 
@@ -101,7 +101,7 @@ def run_mha_nosp(norm_hidden_states, init_ckpt=None):
     position_k = None
 
     cross_attention_kwargs = {}
-    frame = int(9)
+    frame = int(18)
 
     # 3. run
     atten_out = attn1(
@@ -110,7 +110,7 @@ def run_mha_nosp(norm_hidden_states, init_ckpt=None):
         attention_mask=attention_mask,
         position_q=position_q,
         position_k=position_k,
-        last_shape=frame,
+        last_shape=(frame,),
         **cross_attention_kwargs,
     )
     atten_out = ops.permute(atten_out, (1, 0, 2))
@@ -136,14 +136,22 @@ if __name__ == '__main__':
     norm_hidden_states = Tensor(norm_hidden_states)
 
     init_ckpt = "./mha_random_init.ckpt"
+
+    print("\n============== run sp ==============")
     atten_out_sp = run_mha_sp(norm_hidden_states, init_ckpt)
+    print("====================================")
+
+    print("\n============== run no sp ==============")
     atten_out = run_mha_nosp(norm_hidden_states, init_ckpt).chunk(2, axis=0)[hccl_info.rank%hccl_info.world_size]
+    print("=======================================")
 
     atten_out_sp, atten_out = atten_out_sp.asnumpy(), atten_out.asnumpy()
     diff_abs = np.abs(atten_out_sp - atten_out).mean()
     diff_rel = (np.abs(atten_out_sp - atten_out) / np.abs(atten_out)).mean()
     diff_rel_eps = (np.abs(atten_out_sp - atten_out) / (np.abs(atten_out) + np.abs(atten_out.mean()))).mean()
 
+    print("\n============== diff ==============")
     print(f"diff_abs: {diff_abs}")
     print(f"diff_rel: {diff_rel * 100:.2f}%")
     print(f"diff_rel_eps: {diff_rel_eps * 100:.2f}%")
+    print("==================================")
