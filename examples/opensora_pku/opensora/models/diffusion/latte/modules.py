@@ -531,6 +531,11 @@ class MultiHeadAttention(nn.Cell):
         v = self.to_v(encoder_hidden_states)
 
         if self.layout == "SBH":
+
+            # zhy_test
+            self.dump("hidden_states_sp", hidden_states)  # (f, b, N)
+            self.dump("encoder_hidden_states_sp", encoder_hidden_states)
+
             q_f, q_b, _ = q.shape
             k_f, k_b, _ = k.shape  # FIXME: zhy_test 1
             v_f, v_b, _ = v.shape  # FIXME: zhy_test 1
@@ -540,6 +545,11 @@ class MultiHeadAttention(nn.Cell):
             v = v.view(-1, h, head_dim)
             h_size = h * head_dim
             h_size_sp = h_size // self.sp_size
+
+            # zhy_test
+            self.dump("q_sp_before_a2a", q)  # (b * f // sp, h, d)
+            self.dump("k_sp_before_a2a", k)
+            self.dump("v_sp_before_a2a", v)
 
             # apply all_to_all to gather sequence and split attention heads [s // sp * b, h, d] -> [s * b, h // sp, d]
             q = self.alltoall_sbh_q(q).view(-1, batch_size, h_size_sp)
@@ -617,6 +627,10 @@ class MultiHeadAttention(nn.Cell):
                 out = out.view(-1, h // self.sp_size, n, d).transpose(0, 2, 1, 3).view(-1, h // self.sp_size, d)
                 out = self.alltoall_sbh_out(out).view(-1, batch_size, h_size)
         else:
+            # zhy_test
+            self.dump("hidden_states_no_sp", hidden_states)  # (b, f, N)
+            self.dump("encoder_hidden_states_no_sp", encoder_hidden_states)
+
             q_b, q_n, _ = q.shape  # (b n h*d)
             k_b, k_n, _ = k.shape
             v_b, v_n, _ = v.shape
