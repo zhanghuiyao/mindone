@@ -47,7 +47,7 @@ if __name__ == '__main__':
     print("\n============== run sp ==============")
     # (f, b, N) -> (f // sp * b, h, d)
     norm_hidden_states_sp = norm_hidden_states.chunk(2, axis=0)[hccl_info.rank%hccl_info.world_size].reshape(-1, h, d)
-    out_sp = run_all2all_sp(norm_hidden_states_sp)  # (f // sp * b * hw, h, d) -> (f * b, h // sp, d)
+    out_sp = run_all2all_sp(norm_hidden_states_sp)  # (f // sp * b, h, d) -> (f * b, h // sp, d)
     print("====================================")
 
     print("\n============== run no sp ==============")

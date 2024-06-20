@@ -16,7 +16,7 @@ from opensora.acceleration.parallel_states import get_sequence_parallel_state, h
 def run_mha_sp(norm_hidden_states, init_ckpt=None):
 
     # 0. split input
-    # (f, bs * h*w, N) -> (f // sp, bs * h*w, N)
+    # (f // sp, bs * h*w, N)
     norm_hidden_states = ops.chunk(norm_hidden_states, 2, axis=0)[hccl_info.rank%hccl_info.world_size]
 
     # 1. init block
@@ -33,7 +33,7 @@ def run_mha_sp(norm_hidden_states, init_ckpt=None):
         rope_scaling=None,
         compress_kv_factor=None,
         FA_dtype=ms.bfloat16,
-        layout="SBH" if get_sequence_parallel_state() else "BSH",
+        layout="SBH",
     )
     param_dict = ms.load_checkpoint(init_ckpt)
     ms.load_param_into_net(attn1, param_dict)
@@ -113,7 +113,6 @@ def run_mha_nosp(norm_hidden_states, init_ckpt=None):
         last_shape=(frame,),
         **cross_attention_kwargs,
     )
-    atten_out = ops.permute(atten_out, (1, 0, 2))
 
     print(f"input norm_hidden_states.shape: {norm_hidden_states.shape}")
     print(f"atten_out.shape: {atten_out.shape}")
@@ -138,11 +137,14 @@ if __name__ == '__main__':
     init_ckpt = "./mha_random_init.ckpt"
 
     print("\n============== run sp ==============")
+    # (f // sp, b, h * d)
     atten_out_sp = run_mha_sp(norm_hidden_states, init_ckpt)
     print("====================================")
 
     print("\n============== run no sp ==============")
-    atten_out = run_mha_nosp(norm_hidden_states, init_ckpt).chunk(2, axis=0)[hccl_info.rank%hccl_info.world_size]
+    # (b, f, h * d) -> (f, b, h * d) -> (f // sp, b, h * d)
+    atten_out = run_mha_nosp(norm_hidden_states, init_ckpt).permute(
+        (1, 0, 2)).chunk(2, axis=0)[hccl_info.rank%hccl_info.world_size]
     print("=======================================")
 
     atten_out_sp, atten_out = atten_out_sp.asnumpy(), atten_out.asnumpy()
