@@ -753,6 +753,7 @@ class VideoGenPipeline(DiffusionPipeline):
                 )
 
                 if i == 0:
+                    # zhy_test: dump 3
                     if get_sequence_parallel_state():
                         if hccl_info.rank % hccl_info.world_size == 0:
                             np.save("noise_pred_0_sp0.npy", noise_pred.to(ms.float32).asnumpy())
