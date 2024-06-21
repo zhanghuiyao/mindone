@@ -207,11 +207,13 @@ class MultiHeadAttention(nn.Cell):
             self.alltoall_sbh_k = AllToAll_SBH(scatter_dim=1, gather_dim=0)
             self.alltoall_sbh_v = AllToAll_SBH(scatter_dim=1, gather_dim=0)
             self.alltoall_sbh_out = AllToAll_SBH(scatter_dim=0, gather_dim=1)
+            self.alltoall_sbh_out_trans = AllToAll_SBH(scatter_dim=1, gather_dim=0)
         else:
             self.alltoall_sbh_q = None
             self.alltoall_sbh_k = None
             self.alltoall_sbh_v = None
             self.alltoall_sbh_out = None
+            self.alltoall_sbh_out_trans = None
 
         if norm_num_groups is not None:
             self.group_norm = nn.GroupNorm(num_channels=query_dim, num_groups=norm_num_groups, eps=eps, affine=True)
@@ -610,6 +612,7 @@ class MultiHeadAttention(nn.Cell):
 
                 out = self.flash_attention(q, k, v, mask)
                 b, h_, n, d = out.shape
+                # (b, h // sp, f, d) -> (b * f, h // sp, d)
                 out = out.transpose(0, 2, 1, 3).view(-1, h_, d)
 
                 # zhy_test
@@ -629,7 +632,11 @@ class MultiHeadAttention(nn.Cell):
                 elif hccl_info.rank == 1:
                     self.dump("out_sp_after_all2all_p2", out)  # (b * f, h // sp, d)
 
-                out = out.view(batch_size, -1, h_size).swapaxes(0, 1)
+                # FIXME: zhy_test 3
+                # out = out.view(batch_size, -1, h_size).swapaxes(0, 1)
+                out = out.view(-1, sequence_length, h_size)  # (b // sp, f, h*d)
+                out = self.alltoall_sbh_out_trans(out)  # (b, f // sp, h * d)
+                out = out.swapaxes(0, 1)  # (f // sp, b, h * d)
 
                 # zhy_test
                 if hccl_info.rank == 0:
