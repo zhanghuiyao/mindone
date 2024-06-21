@@ -556,6 +556,10 @@ class MultiHeadAttention(nn.Cell):
                 self.dump("q_sp_before_a2a", q)  # (b * f // sp, h, d)
                 self.dump("k_sp_before_a2a", k)
                 self.dump("v_sp_before_a2a", v)
+            elif hccl_info.rank == 1:
+                self.dump("q_sp_before_a2a_p2", q)  # (b * f // sp, h, d)
+                self.dump("k_sp_before_a2a_p2", k)
+                self.dump("v_sp_before_a2a_p2", v)
 
             # apply all_to_all to gather sequence and split attention heads [s // sp * b, h, d] -> [s * b, h // sp, d]
             q = self.alltoall_sbh_q(q)
@@ -567,6 +571,10 @@ class MultiHeadAttention(nn.Cell):
                 self.dump("q_sp_after_a2a", q)
                 self.dump("k_sp_after_a2a", k)
                 self.dump("v_sp_after_a2a", v)
+            elif hccl_info.rank == 1:
+                self.dump("q_sp_after_a2a_p2", q)
+                self.dump("k_sp_after_a2a_p2", k)
+                self.dump("v_sp_after_a2a_p2", v)
 
             q = q.view(-1, batch_size, h_size_sp)
             k = k.view(-1, batch_size, h_size_sp)
