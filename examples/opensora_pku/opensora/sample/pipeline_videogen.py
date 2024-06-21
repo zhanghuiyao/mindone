@@ -708,10 +708,13 @@ class VideoGenPipeline(DiffusionPipeline):
 
 
         # zhy_test
-        # np.save("input_latent.npy", latents.asnumpy())
-        # np.save("prompt_embeds.npy", prompt_embeds.asnumpy())
-        # np.save("prompt_embeds_mask.npy", prompt_embeds_mask.asnumpy())
-        # assert 1 == 2
+        np.save("input_latent.npy", latents.asnumpy())
+        np.save("prompt_embeds.npy", prompt_embeds.asnumpy())
+        np.save("prompt_embeds_mask.npy", prompt_embeds_mask.asnumpy())
+        print(f"input_latent.shape: {latents.shape}, input_latent.dtype: {latents.dtype}")
+        print(f"prompt_embeds.shape: {prompt_embeds.shape}, prompt_embeds.dtype: {prompt_embeds.dtype}")
+        print(f"prompt_embeds_mask.shape: {prompt_embeds_mask.shape}, prompt_embeds_mask.dtype: {prompt_embeds_mask.dtype}")
+        assert 1 == 2
 
         latents = Tensor(np.load("input_latent.npy"))
         prompt_embeds = Tensor(np.load("prompt_embeds.npy"))
@@ -752,11 +755,11 @@ class VideoGenPipeline(DiffusionPipeline):
                 if i == 0:
                     if get_sequence_parallel_state():
                         if hccl_info.rank % hccl_info.world_size == 0:
-                            np.save("noise_pred_0_sp0.npy", noise_pred.asnumpy())
+                            np.save("noise_pred_0_sp0.npy", noise_pred.to(ms.float32).asnumpy())
                         elif hccl_info.rank % hccl_info.world_size == 1:
-                            np.save("noise_pred_0_sp1.npy", noise_pred.asnumpy())
+                            np.save("noise_pred_0_sp1.npy", noise_pred.to(ms.float32).asnumpy())
                     else:
-                        np.save("noise_pred_0.npy", noise_pred.asnumpy())
+                        np.save("noise_pred_0.npy", noise_pred.to(ms.float32).asnumpy())
                     assert 1 == 2
 
                 # perform guidance

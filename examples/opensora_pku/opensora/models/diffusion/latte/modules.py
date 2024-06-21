@@ -1384,7 +1384,7 @@ class BasicTransformerBlock_(nn.Cell):
 
         # zhy_test
         if layout is None:
-            layout = "SBH" if get_sequence_parallel_state() else "BSH",
+            layout = "SBH" if get_sequence_parallel_state() else "BSH"
         self.layout = layout
 
         self.attn1 = MultiHeadAttention(
