@@ -24,7 +24,7 @@ from opensora.acceleration.communications import AllGather, prepare_parallel_dat
 from opensora.acceleration.parallel_states import get_sequence_parallel_state, hccl_info
 
 import mindspore as ms
-from mindspore import ops
+from mindspore import ops, nn, Tensor
 
 import numpy as np
 
@@ -708,11 +708,14 @@ class VideoGenPipeline(DiffusionPipeline):
 
 
         # zhy_test
-        np.save("input_latent.npy", latents.asnumpy())
-        np.save("prompt_embeds.npy", prompt_embeds.asnumpy())
-        np.save("prompt_embeds_mask.npy", prompt_embeds_mask.asnumpy())
+        # np.save("input_latent.npy", latents.asnumpy())
+        # np.save("prompt_embeds.npy", prompt_embeds.asnumpy())
+        # np.save("prompt_embeds_mask.npy", prompt_embeds_mask.asnumpy())
+        # assert 1 == 2
 
-        assert 1 == 2
+        latents = Tensor(np.load("input_latent.npy"))
+        prompt_embeds = Tensor(np.load("prompt_embeds.npy"))
+        prompt_embeds_mask = Tensor(np.load("prompt_embeds_mask.npy"))
 
         # FIXME: zhy_test 3
         if get_sequence_parallel_state():
@@ -745,6 +748,16 @@ class VideoGenPipeline(DiffusionPipeline):
                     enable_temporal_attentions=enable_temporal_attentions,
                     encoder_attention_mask=prompt_embeds_mask,  # (b n)
                 )
+
+                if i == 0:
+                    if get_sequence_parallel_state():
+                        if hccl_info.rank % hccl_info.world_size == 0:
+                            np.save("noise_pred_0_sp0.npy", noise_pred.asnumpy())
+                        elif hccl_info.rank % hccl_info.world_size == 1:
+                            np.save("noise_pred_0_sp1.npy", noise_pred.asnumpy())
+                    else:
+                        np.save("noise_pred_0.npy", noise_pred.asnumpy())
+                    assert 1 == 2
 
                 # perform guidance
                 if do_classifier_free_guidance:
