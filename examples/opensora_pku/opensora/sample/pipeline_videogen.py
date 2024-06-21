@@ -20,11 +20,13 @@ import urllib.parse as ul
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple, Union
 
-from opensora.acceleration.communications import AllGather
+from opensora.acceleration.communications import AllGather, prepare_parallel_data
 from opensora.acceleration.parallel_states import get_sequence_parallel_state, hccl_info
 
 import mindspore as ms
 from mindspore import ops
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -535,6 +537,19 @@ class VideoGenPipeline(DiffusionPipeline):
         latents = latents * self.scheduler.init_noise_sigma
         return latents
 
+    # FIXME: zhy_test 4
+    def prepare_parallel_latent(self, video_states):
+        sp_size = hccl_info.world_size
+        index = hccl_info.rank % sp_size
+        padding_needed = (sp_size - video_states.shape[2] % sp_size) % sp_size
+        if padding_needed > 0:
+            print("Doing video padding")
+            # B, C, T, H, W -> B, C, T', H, W
+            video_states = ops.pad(video_states, (0, 0, 0, 0, 0, padding_needed), mode="constant", value=0)
+        assert video_states.shape[2] % sp_size == 0
+        video_states = ops.chunk(video_states, sp_size, 2)[index]
+        return video_states
+
     def __call__(
         self,
         prompt: Union[str, List[str]] = None,
@@ -674,9 +689,7 @@ class VideoGenPipeline(DiffusionPipeline):
         latents = self.prepare_latents(
             batch_size * num_videos_per_prompt,
             latent_channels,
-            (num_frames + hccl_info.world_size - 1) // hccl_info.world_size
-            if get_sequence_parallel_state()
-            else num_frames,
+            num_frames, # FIXME: zhy_test 5
             height,
             width,
             prompt_embeds.dtype,
@@ -692,6 +705,18 @@ class VideoGenPipeline(DiffusionPipeline):
 
         # 7. Denoising loop
         num_warmup_steps = max(len(timesteps) - num_inference_steps * self.scheduler.order, 0)
+
+
+        # zhy_test
+        np.save("input_latent.npy", latents.asnumpy())
+        np.save("prompt_embeds.npy", prompt_embeds.asnumpy())
+        np.save("prompt_embeds_mask.npy", prompt_embeds_mask.asnumpy())
+
+        assert 1 == 2
+
+        # FIXME: zhy_test 3
+        if get_sequence_parallel_state():
+            latents = self.prepare_parallel_latent(latents)
 
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):

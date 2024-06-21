@@ -618,6 +618,7 @@ class MultiHeadAttention(nn.Cell):
 
 
                 ###### new ######
+                # FIXME: zhy_test 2
                 # (b, h // sp, f, d) -> (h // sp, f, b, d)
                 out = out.transpose((1, 2, 0, 3))
 
@@ -650,7 +651,7 @@ class MultiHeadAttention(nn.Cell):
                 # elif hccl_info.rank == 1:
                 #     self.dump("out_sp_after_all2all_p2", out)  # (b * f, h // sp, d)
                 #
-                # # FIXME: zhy_test 3
+                # # FIXME: zhy_test 2
                 # # out = out.view(batch_size, -1, h_size).swapaxes(0, 1)
                 # out = out.view(-1, sequence_length, h_size)  # (b // sp, f, h*d)
                 # out = self.alltoall_sbh_out_trans(out)  # (b, f // sp, h * d)
