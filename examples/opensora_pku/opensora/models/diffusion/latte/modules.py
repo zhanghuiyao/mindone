@@ -615,15 +615,27 @@ class MultiHeadAttention(nn.Cell):
                 # zhy_test
                 if hccl_info.rank == 0:
                     self.dump("out_sp_before_all2all", out)  # (b * f, h // sp, d)
+                elif hccl_info.rank == 1:
+                    self.dump("out_sp_before_all2all_p2", out)  # (b * f, h // sp, d)
 
                 # FIXME: zhy_test 2
                 # (b * f // sp, h, d) --> 【b, f // sp, h * d】 --> (f // sp, b, h * d)
                 # out = self.alltoall_sbh_out(out).view(-1, batch_size, h_size)
-                out = self.alltoall_sbh_out(out).view(batch_size, -1, h_size).swapaxes(0, 1)
+                out = self.alltoall_sbh_out(out)
+
+                # zhy_test
+                if hccl_info.rank == 0:
+                    self.dump("out_sp_after_all2all", out)  # (b * f, h // sp, d)
+                elif hccl_info.rank == 1:
+                    self.dump("out_sp_after_all2all_p2", out)  # (b * f, h // sp, d)
+
+                out = out.view(batch_size, -1, h_size).swapaxes(0, 1)
 
                 # zhy_test
                 if hccl_info.rank == 0:
                     self.dump("out_sp", out)  # (f // sp, b, h * d)
+                elif hccl_info.rank == 1:
+                    self.dump("out_sp_p2", out)  # (f // sp, b, h * d)
 
             else:
                 q = (
