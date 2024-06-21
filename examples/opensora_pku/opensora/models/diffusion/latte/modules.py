@@ -1310,6 +1310,7 @@ class BasicTransformerBlock_(nn.Cell):
         rope_scaling: Optional[Dict] = None,
         compress_kv_factor: Optional[Tuple] = None,
         FA_dtype=ms.bfloat16,
+        layout = None  # zhy_test
     ):
         super().__init__()
 
@@ -1379,6 +1380,11 @@ class BasicTransformerBlock_(nn.Cell):
         else:
             self.norm1_ln = LayerNorm(dim, elementwise_affine=norm_elementwise_affine, eps=norm_eps)
 
+
+        # zhy_test
+        if layout is None:
+            layout = "SBH" if get_sequence_parallel_state() else "BSH",
+
         self.attn1 = MultiHeadAttention(
             query_dim=dim,
             heads=num_attention_heads,
@@ -1392,7 +1398,7 @@ class BasicTransformerBlock_(nn.Cell):
             rope_scaling=rope_scaling,
             compress_kv_factor=compress_kv_factor,
             FA_dtype=self.FA_dtype,
-            layout="SBH" if get_sequence_parallel_state() else "BSH",
+            layout=layout
         )
 
         self.norm3 = LayerNorm(dim, elementwise_affine=norm_elementwise_affine, eps=norm_eps)
