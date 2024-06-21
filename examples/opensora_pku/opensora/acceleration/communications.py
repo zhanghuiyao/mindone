@@ -86,6 +86,15 @@ class _SingleAll2ALL(nn.Cell):
         # output : (b * f // sp, sp, h // sp, d)
         #        : (b * f // sp, h, d)
 
+        # for out new, scatter_dim=2, gather_dim=1
+        # input_: (b, h // sp, f, d)
+        # inp_shape: (b, h // sp, f // sp, d)
+        # input_t: (b, h // sp, f, d)
+        #        : (b * h // sp, sp, f // sp, d)
+        #        : (sp, b * h // sp, f // sp, d)
+        # -----> : (b * h // sp, sp, f // sp, d)
+        # output : (b, h, f // sp, d)
+
 
         scatter_dim, gather_dim, sp_size = self.scatter_dim, self.gather_dim, self.sp_size
         inp_shape = list(input_.shape)

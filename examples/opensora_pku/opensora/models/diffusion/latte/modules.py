@@ -208,7 +208,7 @@ class MultiHeadAttention(nn.Cell):
             self.alltoall_sbh_v = AllToAll_SBH(scatter_dim=1, gather_dim=0)
             self.alltoall_sbh_out = AllToAll_SBH(scatter_dim=0, gather_dim=1)
             # FIXME: zhy_test 3
-            self.alltoall_sbh_out_new = AllToAll_SBH(scatter_dim=2, gather_dim=1)
+            self.alltoall_sbh_out_new = AllToAll_SBH(scatter_dim=1, gather_dim=0)
             self.alltoall_sbh_out_trans = AllToAll_SBH(scatter_dim=1, gather_dim=0)
         else:
             self.alltoall_sbh_q = None
@@ -618,14 +618,17 @@ class MultiHeadAttention(nn.Cell):
 
 
                 ###### new ######
-                # (b, h // sp, f, d) -> (b, h, f // sp, d)
+                # (b, h // sp, f, d) -> (h // sp, f, b, d)
+                out = out.transpose((1, 2, 0, 3))
+
+                # (h // sp, f, b, d) -> (h, f // sp, b, d)
                 out = self.alltoall_sbh_out_new(out)
 
                 # (f // sp, b, h * d)
-                out = out.transpose(2, 0, 1, 3).view(-1, b, h_size)
+                out = out.transpose(1, 2, 0, 3).view(-1, b, h_size)
                 ####### new end ######
 
-                
+
                 ####### old ######
                 # # (b, h // sp, f, d) -> (b * f, h // sp, d)
                 # out = out.transpose(0, 2, 1, 3).view(-1, h_, d)
