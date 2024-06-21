@@ -537,6 +537,10 @@ class MultiHeadAttention(nn.Cell):
                 self.dump("hidden_states_sp", hidden_states)  # (f, b, N)
                 self.dump("encoder_hidden_states_sp", encoder_hidden_states)
 
+                self.dump("to_q_sp", q)
+                self.dump("to_k_sp", k)
+                self.dump("to_v_sp", v)
+
             q_f, q_b, _ = q.shape
             k_f, k_b, _ = k.shape  # FIXME: zhy_test 1
             v_f, v_b, _ = v.shape  # FIXME: zhy_test 1
@@ -641,6 +645,10 @@ class MultiHeadAttention(nn.Cell):
             if hccl_info.rank == 0:
                 self.dump("hidden_states_no_sp", hidden_states)  # (b, f, N)
                 self.dump("encoder_hidden_states_no_sp", encoder_hidden_states)
+
+                self.dump("to_q_no_sp", q)
+                self.dump("to_k_no_sp", k)
+                self.dump("to_v_no_sp", v)
 
             q_b, q_n, _ = q.shape  # (b n h*d)
             k_b, k_n, _ = k.shape
