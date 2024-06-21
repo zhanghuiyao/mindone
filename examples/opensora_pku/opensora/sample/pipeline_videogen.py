@@ -707,18 +707,18 @@ class VideoGenPipeline(DiffusionPipeline):
         num_warmup_steps = max(len(timesteps) - num_inference_steps * self.scheduler.order, 0)
 
 
-        # zhy_test
-        np.save("input_latent.npy", latents.asnumpy())
-        np.save("prompt_embeds.npy", prompt_embeds.asnumpy())
-        np.save("prompt_embeds_mask.npy", prompt_embeds_mask.asnumpy())
-        print(f"input_latent.shape: {latents.shape}, input_latent.dtype: {latents.dtype}")
-        print(f"prompt_embeds.shape: {prompt_embeds.shape}, prompt_embeds.dtype: {prompt_embeds.dtype}")
-        print(f"prompt_embeds_mask.shape: {prompt_embeds_mask.shape}, prompt_embeds_mask.dtype: {prompt_embeds_mask.dtype}")
-        assert 1 == 2
+        # # zhy_test
+        # np.save("input_latent.npy", latents.asnumpy())
+        # np.save("prompt_embeds.npy", prompt_embeds.asnumpy())
+        # np.save("prompt_embeds_mask.npy", prompt_embeds_mask.asnumpy())
+        # print(f"input_latent.shape: {latents.shape}, input_latent.dtype: {latents.dtype}")
+        # print(f"prompt_embeds.shape: {prompt_embeds.shape}, prompt_embeds.dtype: {prompt_embeds.dtype}")
+        # print(f"prompt_embeds_mask.shape: {prompt_embeds_mask.shape}, prompt_embeds_mask.dtype: {prompt_embeds_mask.dtype}")
+        # assert 1 == 2
 
-        latents = Tensor(np.load("input_latent.npy"))
-        prompt_embeds = Tensor(np.load("prompt_embeds.npy"))
-        prompt_embeds_mask = Tensor(np.load("prompt_embeds_mask.npy"))
+        latents = Tensor(np.load("input_latent.npy"), dtype=ms.float32)
+        prompt_embeds = Tensor(np.load("prompt_embeds.npy"), dtype=ms.float32)
+        prompt_embeds_mask = Tensor(np.load("prompt_embeds_mask.npy"), dtype=ms.int32)
 
         # FIXME: zhy_test 3
         if get_sequence_parallel_state():
