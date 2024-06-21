@@ -303,7 +303,7 @@ class MultiHeadAttention(nn.Cell):
             )
 
         # zhy_test
-        self.dump = ops.TensorDump()
+        # self.dump = ops.TensorDump()
 
     def _init_compress(self):
         if len(self.compress_kv_factor) == 2:
@@ -537,14 +537,14 @@ class MultiHeadAttention(nn.Cell):
 
         if self.layout == "SBH":
 
-            # zhy_test
-            if hccl_info.rank == 0:
-                self.dump("hidden_states_sp", hidden_states)  # (f, b, N)
-                self.dump("encoder_hidden_states_sp", encoder_hidden_states)
-
-                self.dump("to_q_sp", q)
-                self.dump("to_k_sp", k)
-                self.dump("to_v_sp", v)
+            # # zhy_test
+            # if hccl_info.rank == 0:
+            #     self.dump("hidden_states_sp", hidden_states)  # (f, b, N)
+            #     self.dump("encoder_hidden_states_sp", encoder_hidden_states)
+            #
+            #     self.dump("to_q_sp", q)
+            #     self.dump("to_k_sp", k)
+            #     self.dump("to_v_sp", v)
 
             q_f, q_b, _ = q.shape
             k_f, k_b, _ = k.shape  # FIXME: zhy_test 1
@@ -556,30 +556,30 @@ class MultiHeadAttention(nn.Cell):
             h_size = h * head_dim
             h_size_sp = h_size // self.sp_size
 
-            # zhy_test
-            if hccl_info.rank == 0:
-                self.dump("q_sp_before_a2a", q)  # (b * f // sp, h, d)
-                self.dump("k_sp_before_a2a", k)
-                self.dump("v_sp_before_a2a", v)
-            elif hccl_info.rank == 1:
-                self.dump("q_sp_before_a2a_p2", q)  # (b * f // sp, h, d)
-                self.dump("k_sp_before_a2a_p2", k)
-                self.dump("v_sp_before_a2a_p2", v)
+            # # zhy_test
+            # if hccl_info.rank == 0:
+            #     self.dump("q_sp_before_a2a", q)  # (b * f // sp, h, d)
+            #     self.dump("k_sp_before_a2a", k)
+            #     self.dump("v_sp_before_a2a", v)
+            # elif hccl_info.rank == 1:
+            #     self.dump("q_sp_before_a2a_p2", q)  # (b * f // sp, h, d)
+            #     self.dump("k_sp_before_a2a_p2", k)
+            #     self.dump("v_sp_before_a2a_p2", v)
 
             # apply all_to_all to gather sequence and split attention heads [s // sp * b, h, d] -> [s * b, h // sp, d]
             q = self.alltoall_sbh_q(q)
             k = self.alltoall_sbh_k(k)
             v = self.alltoall_sbh_v(v)
 
-            # zhy_test
-            if hccl_info.rank == 0:
-                self.dump("q_sp_after_a2a", q)
-                self.dump("k_sp_after_a2a", k)
-                self.dump("v_sp_after_a2a", v)
-            elif hccl_info.rank == 1:
-                self.dump("q_sp_after_a2a_p2", q)
-                self.dump("k_sp_after_a2a_p2", k)
-                self.dump("v_sp_after_a2a_p2", v)
+            # # zhy_test
+            # if hccl_info.rank == 0:
+            #     self.dump("q_sp_after_a2a", q)
+            #     self.dump("k_sp_after_a2a", k)
+            #     self.dump("v_sp_after_a2a", v)
+            # elif hccl_info.rank == 1:
+            #     self.dump("q_sp_after_a2a_p2", q)
+            #     self.dump("k_sp_after_a2a_p2", k)
+            #     self.dump("v_sp_after_a2a_p2", v)
 
             q = q.view(-1, batch_size, h_size_sp)
             k = k.view(-1, batch_size, h_size_sp)
@@ -605,13 +605,13 @@ class MultiHeadAttention(nn.Cell):
                     if mask.shape[-2] == 1:
                         mask = mask.repeat(q.shape[-2], axis=-2)
 
-                # zhy_test
-                if hccl_info.rank == 0:
-                    if mask is not None:
-                        self.dump("mask_sp", mask)
-                    self.dump("q_sp", q)  # (b, h // sp, f, d)
-                    self.dump("k_sp", k)
-                    self.dump("v_sp", v)
+                # # zhy_test
+                # if hccl_info.rank == 0:
+                #     if mask is not None:
+                #         self.dump("mask_sp", mask)
+                #     self.dump("q_sp", q)  # (b, h // sp, f, d)
+                #     self.dump("k_sp", k)
+                #     self.dump("v_sp", v)
 
                 out = self.flash_attention(q, k, v, mask)
                 b, h_, n, d = out.shape
@@ -658,11 +658,11 @@ class MultiHeadAttention(nn.Cell):
                 ####### old end ######
 
 
-                # zhy_test
-                if hccl_info.rank == 0:
-                    self.dump("out_sp", out)  # (f // sp, b, h * d)
-                elif hccl_info.rank == 1:
-                    self.dump("out_sp_p2", out)  # (f // sp, b, h * d)
+                # # zhy_test
+                # if hccl_info.rank == 0:
+                #     self.dump("out_sp", out)  # (f // sp, b, h * d)
+                # elif hccl_info.rank == 1:
+                #     self.dump("out_sp_p2", out)  # (f // sp, b, h * d)
 
             else:
                 q = (
@@ -698,14 +698,14 @@ class MultiHeadAttention(nn.Cell):
                 out = out.view(-1, h // self.sp_size, n, d).transpose(0, 2, 1, 3).view(-1, h // self.sp_size, d)
                 out = self.alltoall_sbh_out(out).view(-1, batch_size, h_size)
         else:
-            # zhy_test
-            if hccl_info.rank == 0:
-                self.dump("hidden_states_no_sp", hidden_states)  # (b, f, N)
-                self.dump("encoder_hidden_states_no_sp", encoder_hidden_states)
-
-                self.dump("to_q_no_sp", q)
-                self.dump("to_k_no_sp", k)
-                self.dump("to_v_no_sp", v)
+            # # zhy_test
+            # if hccl_info.rank == 0:
+            #     self.dump("hidden_states_no_sp", hidden_states)  # (b, f, N)
+            #     self.dump("encoder_hidden_states_no_sp", encoder_hidden_states)
+            #
+            #     self.dump("to_q_no_sp", q)
+            #     self.dump("to_k_no_sp", k)
+            #     self.dump("to_v_no_sp", v)
 
             q_b, q_n, _ = q.shape  # (b n h*d)
             k_b, k_n, _ = k.shape
@@ -718,13 +718,13 @@ class MultiHeadAttention(nn.Cell):
             if self.use_rope:
                 self.apply_rope(q, k, v, position_q, position_k)
 
-            # zhy_test
-            if hccl_info.rank == 0:
-                if mask is not None:
-                    self.dump("mask_before_no_sp", mask)
-                self.dump("q_before_no_sp", q)  # (b, h, f, d)
-                self.dump("k_before_no_sp", k)
-                self.dump("v_before_no_sp", v)
+            # # zhy_test
+            # if hccl_info.rank == 0:
+            #     if mask is not None:
+            #         self.dump("mask_before_no_sp", mask)
+            #     self.dump("q_before_no_sp", q)  # (b, h, f, d)
+            #     self.dump("k_before_no_sp", k)
+            #     self.dump("v_before_no_sp", v)
 
             if self.enable_flash_attention:
                 # reshape qkv shape ((b n h*d) -> (b h n d))and mask dtype for FA input format
@@ -737,22 +737,22 @@ class MultiHeadAttention(nn.Cell):
                     if mask.shape[-2] == 1:
                         mask = mask.repeat(q_n, axis=-2)
 
-                # zhy_test
-                if hccl_info.rank == 0:
-                    if mask is not None:
-                        self.dump("mask_no_sp", mask)
-                    self.dump("q_no_sp", q)  # (b, h, f, d)
-                    self.dump("k_no_sp", k)
-                    self.dump("v_no_sp", v)
+                # # zhy_test
+                # if hccl_info.rank == 0:
+                #     if mask is not None:
+                #         self.dump("mask_no_sp", mask)
+                #     self.dump("q_no_sp", q)  # (b, h, f, d)
+                #     self.dump("k_no_sp", k)
+                #     self.dump("v_no_sp", v)
 
                 out = self.flash_attention(q, k, v, mask)
                 b, h, n, d = out.shape
                 # reshape FA output to original attn input format, (b h n d) -> (b n h*d)
                 out = out.transpose(0, 2, 1, 3).view(b, n, -1)
 
-                # zhy_test
-                if hccl_info.rank == 0:
-                    self.dump("out_no_sp", out)  # (b, f, h * d)
+                # # zhy_test
+                # if hccl_info.rank == 0:
+                #     self.dump("out_no_sp", out)  # (b, f, h * d)
 
             else:
                 # (b, n, h*d) -> (b*h, n, d)
@@ -1314,34 +1314,35 @@ class BasicTransformerBlock_(nn.Cell):
         super().__init__()
 
         # zhy_test
+        self.dump = ops.TensorDump()
         self.enable_dump = False
-        if hccl_info.rank == 0:
-            self.enable_dump = True
-            print(f"=============================temporal_block_init=============================", flush=True)
-            print(f"temporal_block_init__dim: {dim}", flush=True)
-            print(f"temporal_block_init__num_attention_heads: {num_attention_heads}", flush=True)
-            print(f"temporal_block_init__attention_head_dim: {attention_head_dim}", flush=True)
-            print(f"temporal_block_init__dropout: {dropout}", flush=True)
-            print(f"temporal_block_init__cross_attention_dim: {cross_attention_dim}", flush=True)
-            print(f"temporal_block_init__activation_fn: {activation_fn}", flush=True)
-            print(f"temporal_block_init__num_embeds_ada_norm: {num_embeds_ada_norm}", flush=True)
-            print(f"temporal_block_init__attention_bias: {attention_bias}", flush=True)
-            print(f"temporal_block_init__only_cross_attention: {only_cross_attention}", flush=True)
-            print(f"temporal_block_init__double_self_attention: {double_self_attention}", flush=True)
-            print(f"temporal_block_init__upcast_attention: {upcast_attention}", flush=True)
-            print(f"temporal_block_init__norm_elementwise_affine: {norm_elementwise_affine}", flush=True)
-            print(f"temporal_block_init__norm_type: {norm_type}", flush=True)
-            print(f"temporal_block_init__norm_eps: {norm_eps}", flush=True)
-            print(f"temporal_block_init__final_dropout: {final_dropout}", flush=True)
-            print(f"temporal_block_init__attention_type: {attention_type}", flush=True)
-            print(f"temporal_block_init__positional_embeddings: {positional_embeddings}", flush=True)
-            print(f"temporal_block_init__num_positional_embeddings: {num_positional_embeddings}", flush=True)
-            print(f"temporal_block_init__enable_flash_attention: {enable_flash_attention}", flush=True)
-            print(f"temporal_block_init__use_rope: {use_rope}", flush=True)
-            print(f"temporal_block_init__rope_scaling: {rope_scaling}", flush=True)
-            print(f"temporal_block_init__compress_kv_factor: {compress_kv_factor}", flush=True)
-            print(f"temporal_block_init__FA_dtype: {FA_dtype}", flush=True)
-            print(f"=======================================================================", flush=True)
+        # if hccl_info.rank == 0:
+        #     self.enable_dump = True
+        #     print(f"=============================temporal_block_init=============================", flush=True)
+        #     print(f"temporal_block_init__dim: {dim}", flush=True)
+        #     print(f"temporal_block_init__num_attention_heads: {num_attention_heads}", flush=True)
+        #     print(f"temporal_block_init__attention_head_dim: {attention_head_dim}", flush=True)
+        #     print(f"temporal_block_init__dropout: {dropout}", flush=True)
+        #     print(f"temporal_block_init__cross_attention_dim: {cross_attention_dim}", flush=True)
+        #     print(f"temporal_block_init__activation_fn: {activation_fn}", flush=True)
+        #     print(f"temporal_block_init__num_embeds_ada_norm: {num_embeds_ada_norm}", flush=True)
+        #     print(f"temporal_block_init__attention_bias: {attention_bias}", flush=True)
+        #     print(f"temporal_block_init__only_cross_attention: {only_cross_attention}", flush=True)
+        #     print(f"temporal_block_init__double_self_attention: {double_self_attention}", flush=True)
+        #     print(f"temporal_block_init__upcast_attention: {upcast_attention}", flush=True)
+        #     print(f"temporal_block_init__norm_elementwise_affine: {norm_elementwise_affine}", flush=True)
+        #     print(f"temporal_block_init__norm_type: {norm_type}", flush=True)
+        #     print(f"temporal_block_init__norm_eps: {norm_eps}", flush=True)
+        #     print(f"temporal_block_init__final_dropout: {final_dropout}", flush=True)
+        #     print(f"temporal_block_init__attention_type: {attention_type}", flush=True)
+        #     print(f"temporal_block_init__positional_embeddings: {positional_embeddings}", flush=True)
+        #     print(f"temporal_block_init__num_positional_embeddings: {num_positional_embeddings}", flush=True)
+        #     print(f"temporal_block_init__enable_flash_attention: {enable_flash_attention}", flush=True)
+        #     print(f"temporal_block_init__use_rope: {use_rope}", flush=True)
+        #     print(f"temporal_block_init__rope_scaling: {rope_scaling}", flush=True)
+        #     print(f"temporal_block_init__compress_kv_factor: {compress_kv_factor}", flush=True)
+        #     print(f"temporal_block_init__FA_dtype: {FA_dtype}", flush=True)
+        #     print(f"=======================================================================", flush=True)
 
         self.only_cross_attention = only_cross_attention
 
@@ -1409,9 +1410,6 @@ class BasicTransformerBlock_(nn.Cell):
         # let chunk size default to None
         self._chunk_size = None
         self._chunk_dim = 0
-
-        # zhy_test
-        self.dump = ops.TensorDump()
 
     def set_chunk_feed_forward(self, chunk_size: Optional[int], dim: int):
         # Sets chunk feed-forward

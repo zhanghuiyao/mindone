@@ -71,10 +71,10 @@ if __name__ == '__main__':
         (frame,),
     )
 
+    ms.save_checkpoint(temporal_block, "temporal_block_random_init.ckpt")
+
     print(f"input hidden_states.shape: {hidden_states.shape}")
     print(f"temporal_out.shape: {temporal_out.shape}")
     print(f"temporal_out.mean: {temporal_out.mean()}")
     print(f"temporal_out.min: {temporal_out.min()}")
     print(f"temporal_out.max: {temporal_out.max()}")
-
-
