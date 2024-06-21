@@ -112,8 +112,7 @@ if __name__ == '__main__':
     # 2. load input
     _hidden_states = np.load("dump_data/step00/0_tem_b_0_hidden_states.npy")  # (f // sp, b, N)
     full_hidden_states = np.concatenate((_hidden_states[:], _hidden_states[:] * 0.3), axis=0)  # (f, b, N)
-
-    timestep = Tensor(np.load("dump_data/step00/1_tem_b_4_timestep.npy"))
+    timestep_b6N = np.load("dump_data/step00/1_tem_b_4_timestep.npy")
     attention_mask = None
     encoder_hidden_states = None
     encoder_attention_mask = None
@@ -126,6 +125,7 @@ if __name__ == '__main__':
 
     print("\n============== run sp ==============")
     hidden_states = Tensor(_hidden_states)
+    timestep = Tensor(timestep_b6N)
     out_sp = run_tmp_block_sp(
         hidden_states,
         None,  # attention_mask
@@ -144,6 +144,7 @@ if __name__ == '__main__':
     print("\n============== run no sp ==============")
 
     hidden_states = Tensor(full_hidden_states.transpose((1, 0, 2)))
+    timestep = Tensor(timestep_b6N.transpose((1, 0, 2)))
     out_no_sp = run_tmp_block_no_sp(
         hidden_states,
         None,  # attention_mask
