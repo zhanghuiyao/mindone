@@ -558,9 +558,19 @@ class MultiHeadAttention(nn.Cell):
                 self.dump("v_sp_before_a2a", v)
 
             # apply all_to_all to gather sequence and split attention heads [s // sp * b, h, d] -> [s * b, h // sp, d]
-            q = self.alltoall_sbh_q(q).view(-1, batch_size, h_size_sp)
-            k = self.alltoall_sbh_k(k).view(-1, batch_size, h_size_sp)
-            v = self.alltoall_sbh_v(v).view(-1, batch_size, h_size_sp)
+            q = self.alltoall_sbh_q(q)
+            k = self.alltoall_sbh_k(k)
+            v = self.alltoall_sbh_v(v)
+
+            # zhy_test
+            if hccl_info.rank == 0:
+                self.dump("q_sp_after_a2a", q)
+                self.dump("k_sp_after_a2a", k)
+                self.dump("v_sp_after_a2a", v)
+
+            q = q.view(-1, batch_size, h_size_sp)
+            k = k.view(-1, batch_size, h_size_sp)
+            v = v.view(-1, batch_size, h_size_sp)
 
             # 2+: mask adaptation for multi-head attention
             if mask is not None:
