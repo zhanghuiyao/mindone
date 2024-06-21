@@ -508,7 +508,13 @@ class LatteT2V(ModelMixin, ConfigMixin):
             )
 
             # zhy_test: dump
-            ops.TensorDump()(f"hidden_states_{i}", hidden_states)
+            if get_sequence_parallel_state():
+                if hccl_info.rank == 0:
+                    ops.TensorDump()(f"hidden_states_{i}_sp0", hidden_states)
+                elif hccl_info.rank == 1:
+                    ops.TensorDump()(f"hidden_states_{i}_sp1", hidden_states)
+            else:
+                ops.TensorDump()(f"hidden_states_{i}", hidden_states)
 
         # if self.is_input_patches:
         if self.norm_type != "ada_norm_single":
