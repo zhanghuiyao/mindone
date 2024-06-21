@@ -507,6 +507,9 @@ class LatteT2V(ModelMixin, ConfigMixin):
                 temp_attention_mask=temp_attention_mask,
             )
 
+            # zhy_test: dump
+            ops.TensorDump()(f"hidden_states_{i}", hidden_states)
+
         # if self.is_input_patches:
         if self.norm_type != "ada_norm_single":
             conditioning = self.transformer_blocks[0].norm1.emb(
