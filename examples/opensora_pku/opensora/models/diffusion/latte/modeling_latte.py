@@ -486,6 +486,17 @@ class LatteT2V(ModelMixin, ConfigMixin):
             pos_hw, pos_t = self.make_position(input_batch_size, frame, use_image_num, height, width)
 
         for i, block in enumerate(self.blocks):
+
+            # zhy_test: dump 1
+            if get_sequence_parallel_state():
+                if hccl_info.rank == 0:
+                    ops.TensorDump()(f"block_in_hs_{i}_sp0", hidden_states)
+                elif hccl_info.rank == 1:
+                    ops.TensorDump()(f"block_in_hs_{i}_sp1", hidden_states)
+            else:
+                ops.TensorDump()(f"block_in_hs_{i}", hidden_states)
+
+
             hidden_states = block(
                 hidden_states,
                 class_labels,
@@ -507,7 +518,7 @@ class LatteT2V(ModelMixin, ConfigMixin):
                 temp_attention_mask=temp_attention_mask,
             )
 
-            # zhy_test: dump
+            # zhy_test: dump 2
             if get_sequence_parallel_state():
                 if hccl_info.rank == 0:
                     ops.TensorDump()(f"hidden_states_{i}_sp0", hidden_states)
