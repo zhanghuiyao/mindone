@@ -1384,6 +1384,7 @@ class BasicTransformerBlock_(nn.Cell):
         # zhy_test
         if layout is None:
             layout = "SBH" if get_sequence_parallel_state() else "BSH",
+        self.layout = layout
 
         self.attn1 = MultiHeadAttention(
             query_dim=dim,
@@ -1471,7 +1472,9 @@ class BasicTransformerBlock_(nn.Cell):
         elif self.use_layer_norm:
             norm_hidden_states = self.norm1_ln(hidden_states)
         elif self.use_ada_layer_norm_single:
-            if get_sequence_parallel_state():
+            # zhy_test
+            # if get_sequence_parallel_state():
+            if self.layout == "SBH":
                 batch_size = hidden_states.shape[1]
                 shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (
                     self.scale_shift_table[:, None] + timestep.reshape(6, batch_size, -1)
