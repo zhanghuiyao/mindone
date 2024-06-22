@@ -1914,6 +1914,16 @@ class LatteT2VBlock(nn.Cell):
             hw,
         )
 
+        # zhy_test: dump 4
+        if get_sequence_parallel_state():
+            if hccl_info.rank == 0:
+                ops.TensorDump()(f"hs_after_sb_0_sp0", hidden_states.to(ms.float32))
+            elif hccl_info.rank == 1:
+                ops.TensorDump()(f"hs_after_sb_0_sp1", hidden_states.to(ms.float32))
+        else:
+            ops.TensorDump()(f"hs_after_sb_0", hidden_states.to(ms.float32))
+
+
         if enable_temporal_attentions:
             if get_sequence_parallel_state():
                 hidden_states = (
@@ -1941,6 +1951,13 @@ class LatteT2VBlock(nn.Cell):
                     (frame,),
                 )
 
+                # zhy_test: dump 5
+                if hccl_info.rank == 0:
+                    ops.TensorDump()(f"hs_after_tb_0_sp0", hidden_states_video.to(ms.float32))
+                elif hccl_info.rank == 1:
+                    ops.TensorDump()(f"hs_after_tb_0_sp1", hidden_states_video.to(ms.float32))
+
+
                 if use_image_num != 0:
                     hidden_states_image = hidden_states[frame:]
                     hidden_states = ops.concat([hidden_states_video, hidden_states_image], axis=0)
@@ -1955,6 +1972,13 @@ class LatteT2VBlock(nn.Cell):
                     .view(input_batch_size * f, -1, d)
                     .contiguous()
                 )
+
+                # zhy_test: dump 6
+                if hccl_info.rank == 0:
+                    ops.TensorDump()(f"hs_after_tb_after_trans_0_sp0", hidden_states.to(ms.float32))
+                elif hccl_info.rank == 1:
+                    ops.TensorDump()(f"hs_after_tb_after_trans_0_sp1", hidden_states.to(ms.float32))
+
 
             else:
                 # b c f h w, f = 16 + 4
@@ -2008,6 +2032,12 @@ class LatteT2VBlock(nn.Cell):
                         pos_t,
                         (frame,),
                     )
+
+
+                    # zhy_test: dump 7
+                    ops.TensorDump()(f"hs_after_tb_0", hidden_states.to(ms.float32))
+
+
                     # (b t) f d -> (b f) t d
                     hidden_states = hidden_states.view(
                         input_batch_size, -1, frame + use_image_num, hidden_states.shape[-1]
@@ -2015,5 +2045,10 @@ class LatteT2VBlock(nn.Cell):
                     hidden_states = hidden_states.permute(0, 2, 1, 3).view(
                         input_batch_size * (frame + use_image_num), -1, hidden_states.shape[-1]
                     )
+
+
+                    # zhy_test: dump 8
+                    ops.TensorDump()(f"hs_after_tb_after_trans_0", hidden_states.to(ms.float32))
+
 
         return hidden_states

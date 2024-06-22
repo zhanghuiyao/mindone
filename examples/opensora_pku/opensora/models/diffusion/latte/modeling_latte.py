@@ -527,6 +527,8 @@ class LatteT2V(ModelMixin, ConfigMixin):
             else:
                 ops.TensorDump()(f"hidden_states_{i}", hidden_states.to(ms.float32))
 
+            assert 1 == 2
+
         # if self.is_input_patches:
         if self.norm_type != "ada_norm_single":
             conditioning = self.transformer_blocks[0].norm1.emb(

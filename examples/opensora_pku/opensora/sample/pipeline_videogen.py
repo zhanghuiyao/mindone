@@ -716,9 +716,9 @@ class VideoGenPipeline(DiffusionPipeline):
         # print(f"prompt_embeds_mask.shape: {prompt_embeds_mask.shape}, prompt_embeds_mask.dtype: {prompt_embeds_mask.dtype}")
         # assert 1 == 2
 
-        latents = Tensor(np.load("input_latent.npy"), dtype=ms.float32)
-        prompt_embeds = Tensor(np.load("prompt_embeds.npy"), dtype=ms.float32)
-        prompt_embeds_mask = Tensor(np.load("prompt_embeds_mask.npy"), dtype=ms.int32)
+        latents = Tensor(np.load("frozen_inputs/input_latent.npy"), dtype=ms.float32)
+        prompt_embeds = Tensor(np.load("frozen_inputs/prompt_embeds.npy"), dtype=ms.float32)
+        prompt_embeds_mask = Tensor(np.load("frozen_inputs/prompt_embeds_mask.npy"), dtype=ms.int32)
 
         # FIXME: zhy_test 3
         if get_sequence_parallel_state():
