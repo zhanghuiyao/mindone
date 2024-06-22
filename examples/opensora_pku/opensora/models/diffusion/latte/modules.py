@@ -1938,6 +1938,15 @@ class LatteT2VBlock(nn.Cell):
                 if self.is_first_block:
                     hidden_states_video = hidden_states_video + temp_pos_embed
 
+                # zhy_test: dump
+                if hccl_info.rank == 0:
+                    ops.TensorDump()("hs_before_tb_0_sp0", hidden_states.to(ms.float32))
+                    ops.TensorDump()("temp_before_tb_0_sp0", timestep_temp.to(ms.float32))
+                elif hccl_info.rank == 1:
+                    ops.TensorDump()("hs_before_tb_0_sp1", hidden_states.to(ms.float32))
+                    ops.TensorDump()("temp_before_tb_0_sp1", timestep_temp.to(ms.float32))
+
+
                 hidden_states_video = self.temp_block(
                     hidden_states_video,
                     temp_attention_mask if self.training else None,  # attention_mask
@@ -2019,6 +2028,10 @@ class LatteT2VBlock(nn.Cell):
                 else:
                     if self.is_first_block:
                         hidden_states = hidden_states + temp_pos_embed
+
+                    # zhy_test: dump
+                    ops.TensorDump()("hs_before_tb_0", hidden_states.to(ms.float32))
+                    ops.TensorDump()("temp_before_tb_0", timestep_temp.to(ms.float32))
 
                     hidden_states = self.temp_block(
                         hidden_states,
