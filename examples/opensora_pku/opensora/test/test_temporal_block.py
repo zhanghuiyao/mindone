@@ -121,6 +121,8 @@ if __name__ == '__main__':
     full_hidden_states = full_hidden_states.reshape((2, 17, 1024, 1152)).transpose(0, 2, 1, 3).reshape((2048, 17, 1152))
     # _hidden_states = np.load("_bak_test_blocks/dump_data/step00/0_tem_b_0_hidden_states.npy") # (f // sp, b, N) ~ (9, 2048, 1152)
     # full_hidden_states = np.concatenate((_hidden_states[:], _hidden_states[:] * 0.3), axis=0)  # (f, b, N)
+    # if hccl_info.rank == 1:
+    #     _hidden_states = _hidden_states[:] * 0.3
 
     timestep_b6N = np.load("_bak_test_blocks/dump_data/step00/1_tem_b_4_timestep.npy")  # (6, b, N) ~ (6, 2048, 1152)
     attention_mask = None
@@ -135,7 +137,14 @@ if __name__ == '__main__':
 
     print("\n============== run sp ==============")
     hidden_states = Tensor(_hidden_states)
-    timestep = Tensor(timestep_b6N)
+
+    # zhy_test
+    if hccl_info.rank == 0:
+        timestep = Tensor(np.load("3_temp_before_tb_0_sp0.npy"))
+    else:
+        timestep = Tensor(np.load("3_temp_before_tb_0_sp1.npy"))
+    # timestep = Tensor(timestep_b6N)
+
     out_sp = run_tmp_block_sp(
         hidden_states,
         None,  # attention_mask
@@ -158,7 +167,11 @@ if __name__ == '__main__':
     print("\n============== run no sp ==============")
 
     hidden_states = Tensor(full_hidden_states.transpose((1, 0, 2)))
-    timestep = Tensor(timestep_b6N.transpose((1, 0, 2)))
+
+    # zhy_test
+    # timestep = Tensor(timestep_b6N.transpose((1, 0, 2)))
+    timestep = Tensor(np.load("3_temp_before_tb_0.npy"))
+
     out_no_sp = run_tmp_block_no_sp(
         hidden_states,
         None,  # attention_mask

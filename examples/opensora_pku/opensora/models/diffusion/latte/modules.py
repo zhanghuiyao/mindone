@@ -1918,10 +1918,13 @@ class LatteT2VBlock(nn.Cell):
         if get_sequence_parallel_state():
             if hccl_info.rank == 0:
                 ops.TensorDump()(f"hs_after_sb_0_sp0", hidden_states.to(ms.float32))
+                ops.TensorDump()(f"temp_pos_embed_0_sp0", temp_pos_embed.to(ms.float32))
             elif hccl_info.rank == 1:
                 ops.TensorDump()(f"hs_after_sb_0_sp1", hidden_states.to(ms.float32))
+                ops.TensorDump()(f"temp_pos_embed_0_sp1", temp_pos_embed.to(ms.float32))
         else:
             ops.TensorDump()(f"hs_after_sb_0", hidden_states.to(ms.float32))
+            ops.TensorDump()(f"temp_pos_embed_0", temp_pos_embed.to(ms.float32))
 
 
         if enable_temporal_attentions:
