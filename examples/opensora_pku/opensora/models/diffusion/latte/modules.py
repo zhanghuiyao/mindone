@@ -507,16 +507,18 @@ class MultiHeadAttention(nn.Cell):
             sequence_length, batch_size, _ = (
                 hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
             )
+            input_sequence_length = sequence_length
             sequence_length *= self.sp_size
         else:
             batch_size, sequence_length, _ = (
                 hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
             )
+            input_sequence_length = sequence_length
 
         if attention_mask is not None:
             out_dim = 4 if self.enable_flash_attention else 3
             attention_mask = self.prepare_attention_mask(
-                attention_mask, sequence_length, batch_size, out_dim=out_dim
+                attention_mask, input_sequence_length, batch_size, out_dim=out_dim
             )  # make attention mask a correct shape
 
         if self.group_norm is not None:
