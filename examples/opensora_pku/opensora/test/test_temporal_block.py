@@ -110,18 +110,40 @@ if __name__ == '__main__':
     init_env(sp_size=2)
 
     # 2. load input
-
     # zhy_test 1
     if hccl_info.rank == 0:
         _hidden_states = np.load("3_hs_before_tb_0_sp0.npy")
+        timestep = Tensor(np.load("4_temp_before_tb_0_sp0.npy"))
     elif hccl_info.rank == 1:
         _hidden_states = np.load("3_hs_before_tb_0_sp1.npy")
+        timestep = Tensor(np.load("4_temp_before_tb_0_sp1.npy"))
 
     full_hidden_states = np.load("3_hs_before_tb_0.npy")
+    full_timestep = Tensor(np.load("4_temp_before_tb_0.npy"))
     # _hidden_states = np.load("_bak_test_blocks/dump_data/step00/0_tem_b_0_hidden_states.npy") # (f // sp, b, N) ~ (9, 2048, 1152)
     # full_hidden_states = np.concatenate((_hidden_states[:], _hidden_states[:] * 0.3), axis=0)  # (f, b, N)
     # if hccl_info.rank == 1:
     #     _hidden_states = _hidden_states[:] * 0.3
+
+
+
+
+    # zhy_test 4
+    print("\n============== diff input ==============")
+    if hccl_info.rank == 0:
+        in_no_sp, in_sp = _hidden_states[:9, ...], full_hidden_states.transpose((1, 0, 2))[:9, ...]
+    elif hccl_info.rank == 1:
+        in_no_sp, in_sp = _hidden_states[:8, ...], full_hidden_states.transpose((1, 0, 2))[9:, ...]
+    diff_abs = np.abs(in_no_sp - in_sp).mean()
+    diff_rel = (np.abs(in_no_sp - in_sp) / np.abs(in_sp)).mean()
+    diff_rel_eps = (np.abs(in_no_sp - in_sp) / (np.abs(in_sp) + np.abs(in_sp.mean()))).mean()
+
+    print(f"diff_abs: {diff_abs}")
+    print(f"diff_rel: {diff_rel * 100:.2f}%")
+    print(f"diff_rel_eps: {diff_rel_eps * 100:.2f}%")
+    print("==================================")
+
+
 
     # timestep_b6N = np.load("_bak_test_blocks/dump_data/step00/1_tem_b_4_timestep.npy")  # (6, b, N) ~ (6, 2048, 1152)
     attention_mask = None
@@ -138,10 +160,6 @@ if __name__ == '__main__':
     hidden_states = Tensor(_hidden_states)
 
     # zhy_test
-    if hccl_info.rank == 0:
-        timestep = Tensor(np.load("4_temp_before_tb_0_sp0.npy"))
-    else:
-        timestep = Tensor(np.load("4_temp_before_tb_0_sp1.npy"))
     # timestep = Tensor(timestep_b6N)
 
     out_sp = run_tmp_block_sp(
@@ -168,9 +186,10 @@ if __name__ == '__main__':
     # zhy_test
     # hidden_states = Tensor(full_hidden_states.transpose((1, 0, 2)))
     # timestep = Tensor(timestep_b6N.transpose((1, 0, 2)))
-    timestep = Tensor(np.load("4_temp_before_tb_0.npy"))
 
     frame = 17
+    timestep = full_timestep
+    hidden_states = Tensor(full_hidden_states)
     out_no_sp = run_tmp_block_no_sp(
         hidden_states,
         None,  # attention_mask
@@ -194,22 +213,6 @@ if __name__ == '__main__':
         out_no_sp = out_no_sp.transpose(1, 0, 2)[9:]
 
     print("=======================================")
-
-
-    # zhy_test 4
-    print("\n============== diff input ==============")
-    if hccl_info.rank == 0:
-        in_no_sp, in_sp = _hidden_states[:9, ...], full_hidden_states.transpose((1, 0, 2))[:9, ...]
-    elif hccl_info.rank == 1:
-        in_no_sp, in_sp = _hidden_states[:8, ...], full_hidden_states.transpose((1, 0, 2))[9:, ...]
-    diff_abs = np.abs(in_no_sp - in_sp).mean()
-    diff_rel = (np.abs(in_no_sp - in_sp) / np.abs(in_sp)).mean()
-    diff_rel_eps = (np.abs(in_no_sp - in_sp) / (np.abs(in_sp) + np.abs(in_sp.mean()))).mean()
-
-    print(f"diff_abs: {diff_abs}")
-    print(f"diff_rel: {diff_rel * 100:.2f}%")
-    print(f"diff_rel_eps: {diff_rel_eps * 100:.2f}%")
-    print("==================================")
 
 
     print("\n============== diff out ==============")
