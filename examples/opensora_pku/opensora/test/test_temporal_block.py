@@ -144,10 +144,11 @@ if __name__ == '__main__':
     print("\n============== run sp ==============")
     hidden_states = Tensor(_hidden_states)
     timestep = Tensor(timestep_b6N)
+    _attention_mask = Tensor(np.zeros((34, 1024, 1), np.float32))
 
     out_sp = run_tmp_block_sp(
         hidden_states,
-        None,  # attention_mask
+        _attention_mask,  # attention_mask
         None,  # encoder_hidden_states
         None,  # encoder_attention_mask
         timestep,
@@ -166,11 +167,16 @@ if __name__ == '__main__':
     # zhy_test
     hidden_states = Tensor(full_hidden_states.transpose((1, 0, 2)))
     timestep = Tensor(timestep_b6N.transpose((1, 0, 2)))
+    _attention_mask = np.zeros((18, 1024, 1), np.float32)
+    if hccl_info.rank == 1:
+        _attention_mask = _attention_mask.reshape((2, 9, 1024, 1))
+        _attention_mask[:, 8:9, :, :] = -1e5
+    _attention_mask = Tensor(_attention_mask)
 
     frame = 17
     out_no_sp = run_tmp_block_no_sp(
         hidden_states,
-        None,  # attention_mask
+        _attention_mask,  # attention_mask
         None,  # encoder_hidden_states
         None,  # encoder_attention_mask
         timestep,
