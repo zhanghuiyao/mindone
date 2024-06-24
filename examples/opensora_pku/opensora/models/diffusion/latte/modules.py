@@ -369,7 +369,6 @@ class MultiHeadAttention(nn.Cell):
 
         if sp_size > 1:
             head_size = head_size // sp_size
-            target_length = target_length // sp_size
 
         if attention_mask is None:
             return attention_mask

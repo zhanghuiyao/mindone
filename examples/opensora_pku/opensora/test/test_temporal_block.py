@@ -146,7 +146,6 @@ if __name__ == '__main__':
     timestep = Tensor(timestep_b6N)
     _attention_mask = np.ones((2048, 1, 18), np.float32)
     if hccl_info.rank == 1:
-        _attention_mask[:, :, 8] = 0
         _attention_mask[:, :, 17] = 0
     _attention_mask = Tensor(_attention_mask)
 
