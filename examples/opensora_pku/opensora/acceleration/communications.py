@@ -1,5 +1,6 @@
 from opensora.acceleration.parallel_states import hccl_info
 
+import mindspore as ms
 from mindspore import Tensor, nn, ops
 
 
@@ -156,6 +157,9 @@ def prepare_parallel_data(hidden_states, encoder_hidden_states, attention_mask, 
             assert attention_mask.shape[1] % sp_size == 0
             attention_mask = ops.chunk(attention_mask, sp_size, 1)[index]
 
+        # FIXME: zhy_test mask
+        temp_attention_mask = None
+
     else:
         video_states, image_states = hidden_states[:, :, :-use_image_num], hidden_states[:, :, -use_image_num:]
         video_encoder_states, image_encoder_states = (
@@ -176,6 +180,10 @@ def prepare_parallel_data(hidden_states, encoder_hidden_states, attention_mask, 
             video_attention_mask, image_attention_mask = None, None
 
         # 1. for video states
+
+        # FIXME: zhy_test mask
+        temp_attention_mask = None
+
         padding_needed = (sp_size - video_states.shape[2] % sp_size) % sp_size
         if padding_needed > 0:
             print("Doing video padding")
@@ -186,6 +194,12 @@ def prepare_parallel_data(hidden_states, encoder_hidden_states, attention_mask, 
                 video_attention_mask = ops.pad(
                     video_attention_mask, (0, 0, 0, 0, 0, padding_needed), mode="constant", value=0
                 )
+
+            # FIXME: zhy_test mask
+            b, _, f, h, w = video_states.shape
+            temp_attention_mask = ops.ones((b * h * w, 1, f), ms.int32)
+            temp_attention_mask[:, :, -padding_needed:] = 0
+
 
         video_states, video_encoder_states, video_encoder_attention_mask = (
             video_states,
@@ -241,4 +255,6 @@ def prepare_parallel_data(hidden_states, encoder_hidden_states, attention_mask, 
         if attention_mask is not None:
             attention_mask = ops.concat([video_attention_mask, image_attention_mask], axis=1)
 
-    return hidden_states, encoder_hidden_states, attention_mask, encoder_attention_mask, use_image_num
+    # FIXME: zhy_test mask
+    return hidden_states, encoder_hidden_states, attention_mask, encoder_attention_mask, use_image_num, \
+           temp_attention_mask

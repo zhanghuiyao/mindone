@@ -190,13 +190,13 @@ class DiffusionWithLoss(nn.Cell):
 
         return vb
 
+    # FIXME: zhy_test mask
     def compute_loss(self, x, text_embed, encoder_attention_mask, attention_mask=None):
         use_image_num = self.use_image_num
 
         if get_sequence_parallel_state():
-            x, text_embed, attention_mask, encoder_attention_mask, use_image_num = prepare_parallel_data(
-                x, text_embed, attention_mask, encoder_attention_mask, use_image_num
-            )
+            x, text_embed, attention_mask, encoder_attention_mask, use_image_num, temp_attention_mask = \
+                prepare_parallel_data(x, text_embed, attention_mask, encoder_attention_mask, use_image_num)
 
         t = ops.randint(0, self.diffusion.num_timesteps, (x.shape[0],), dtype=ms.int32)
 
@@ -215,6 +215,7 @@ class DiffusionWithLoss(nn.Cell):
             encoder_hidden_states=text_embed,
             attention_mask=attention_mask,
             encoder_attention_mask=encoder_attention_mask,
+            temp_attention_mask=temp_attention_mask,  # FIXME: zhy_test mask
             use_image_num=use_image_num,
         )
 

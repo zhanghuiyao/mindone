@@ -1985,7 +1985,7 @@ class LatteT2VBlock(nn.Cell):
 
                 hidden_states_video = self.temp_block(
                     hidden_states_video,
-                    temp_attention_mask if self.training else None,  # attention_mask
+                    temp_attention_mask,  # attention_mask  # FIXME: zhy_test mask
                     None,  # encoder_hidden_states
                     None,  # encoder_attention_mask
                     timestep_temp,
