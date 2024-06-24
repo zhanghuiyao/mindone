@@ -139,7 +139,7 @@ if __name__ == '__main__':
     position_k = None
     cross_attention_kwargs = None
     frame = 9
-    init_ckpt = "_bak_test_blocks/temporal_block_random_init.ckpt"
+    init_ckpt = "_bak_test_blocks/temp_block_from_trained_weight.ckpt"
 
     print("\n============== run sp ==============")
     hidden_states = Tensor(_hidden_states)
