@@ -64,56 +64,43 @@ if __name__ == '__main__':
 
     # 2. load input
 
-    # zhy_test 1
-    if hccl_info.rank == 0:
-        _hidden_states = np.load("1_hs_after_sb_0_sp0.npy")
-    elif hccl_info.rank == 1:
-        _hidden_states = np.load("1_hs_after_sb_0_sp1.npy")
-    _hidden_states = _hidden_states.reshape((2, 9, 1024, 1152)).transpose(1, 0, 2, 3).reshape((9, 2048, 1152))
-    full_hidden_states = np.load("1_hs_after_sb_0.npy")
-    full_hidden_states = full_hidden_states.reshape((2, 17, 1024, 1152)).transpose(0, 2, 1, 3).reshape((2048, 17, 1152))
-    # _hidden_states = np.load("_bak_test_blocks/dump_data/step00/0_tem_b_0_hidden_states.npy") # (f // sp, b, N) ~ (9, 2048, 1152)
-    # full_hidden_states = np.concatenate((_hidden_states[:], _hidden_states[:] * 0.3), axis=0)  # (f, b, N)
-    # if hccl_info.rank == 1:
-    #     _hidden_states = _hidden_states[:] * 0.3
+    base_dir = "./_bak_test_blocks/dump_data_sb/"
 
-    timestep_b6N = np.load("_bak_test_blocks/dump_data/step00/1_tem_b_4_timestep.npy")  # (6, b, N) ~ (6, 2048, 1152)
-    attention_mask = None
-    encoder_hidden_states = None
-    encoder_attention_mask = None
+    # zhy_test 1
+    hidden_states_sp = np.load(base_dir + f"1_hidden_states_before_sb_0_sp{hccl_info.rank}.npy")
+    attention_mask_sp = np.load(base_dir + f"2_attention_mask_before_sb_0_sp{hccl_info.rank}.npy")
+    encoder_hs_sp = np.load(base_dir + f"3_encoder_hidden_states_spatial_before_sb_0_sp{hccl_info.rank}.npy")
+    encoder_attention_mask_sp = np.load(base_dir + f"4_encoder_attention_mask_before_sb_0_sp{hccl_info.rank}.npy")
+    timestep_sp = np.load(base_dir + f"5_timestep_spatial_before_sb_0_sp{hccl_info.rank}.npy")
+
+    full_hidden_states = np.load(base_dir + f"1_hidden_states_before_sb_0.npy")
+    full_attention_mask = np.load(base_dir + f"2_attention_mask_before_sb_0.npy")
+    full_encoder_hs = np.load(base_dir + f"3_encoder_hidden_states_spatial_before_sb_0.npy")
+    full_encoder_attention_mask = np.load(base_dir + f"4_encoder_attention_mask_before_sb_0.npy")
+    full_timestep = np.load(base_dir + f"5_timestep_spatial_before_sb_0.npy")
+
     class_labels = None
     position_q = None
     position_k = None
     cross_attention_kwargs = None
     frame = 9
-    init_ckpt = "_bak_test_blocks/temporal_block_random_init.ckpt"
+    init_ckpt = "_bak_test_blocks/spatial_block_from_trained_weight.ckpt"
 
     print("\n============== run sp ==============")
-    hidden_states = Tensor(_hidden_states)
 
-    # zhy_test
-    if hccl_info.rank == 0:
-        timestep = Tensor(np.load("3_temp_before_tb_0_sp0.npy"))
-    else:
-        timestep = Tensor(np.load("3_temp_before_tb_0_sp1.npy"))
-    # timestep = Tensor(timestep_b6N)
-
-    out_sp = run_tmp_block_sp(
-        hidden_states,
-        None,  # attention_mask
-        None,  # encoder_hidden_states
-        None,  # encoder_attention_mask
-        timestep,
+    out_sp = run_spatial_block(
+        Tensor(hidden_states_sp),
+        Tensor(attention_mask_sp),  # attention_mask
+        Tensor(encoder_hs_sp),  # encoder_hidden_states
+        Tensor(encoder_attention_mask_sp),  # encoder_attention_mask
+        Tensor(timestep_sp),
         cross_attention_kwargs,
         class_labels,
         position_q,
         position_k,
-        (frame,),
+        (32, 32),
         init_ckpt=init_ckpt
     )
-    # zhy_test 2
-    if hccl_info.rank == 1:
-        out_sp = out_sp[:8]
 
     print("====================================")
 
@@ -125,31 +112,29 @@ if __name__ == '__main__':
     # timestep = Tensor(timestep_b6N.transpose((1, 0, 2)))
     timestep = Tensor(np.load("3_temp_before_tb_0.npy"))
 
-    out_no_sp = run_tmp_block_no_sp(
-        hidden_states,
-        None,  # attention_mask
-        None,  # encoder_hidden_states
-        None,  # encoder_attention_mask
-        timestep,
+    out_no_sp = run_spatial_block(
+        Tensor(full_hidden_states),
+        Tensor(full_attention_mask),  # attention_mask
+        Tensor(full_encoder_hs),  # encoder_hidden_states
+        Tensor(full_encoder_attention_mask),  # encoder_attention_mask
+        Tensor(full_timestep),
         cross_attention_kwargs,
         class_labels,
         position_q,
         position_k,
-        (frame,),
+        (32, 32),
         init_ckpt=init_ckpt
     )
-    # (b, f, N)
-
-    # zhy_test 3
-    # out_no_sp = out_no_sp.transpose(1, 0, 2).chunk(2, axis=0)[hccl_info.rank%hccl_info.world_size]
-    if hccl_info.rank == 0:
-        out_no_sp = out_no_sp.transpose(1, 0, 2)[:9]
-    else:
-        out_no_sp = out_no_sp.transpose(1, 0, 2)[9:]
 
     print("=======================================")
 
     out_no_sp, out_sp = out_no_sp.asnumpy(), out_sp.asnumpy()
+    out_no_sp, out_sp = out_no_sp.reshape((2, 17, -1)), out_sp.reshape((2, 9, -1))
+    if hccl_info.rank == 0:
+        out_no_sp, out_sp = out_no_sp[:, :9, :], out_sp[:, :9, :]
+    elif hccl_info.rank == 1:
+        out_no_sp, out_sp = out_no_sp[:, 9:, :], out_sp[:, :8, :]
+
     diff_abs = np.abs(out_no_sp - out_sp).mean()
     diff_rel = (np.abs(out_no_sp - out_sp) / np.abs(out_sp)).mean()
     diff_rel_eps = (np.abs(out_no_sp - out_sp) / (np.abs(out_sp) + np.abs(out_sp.mean()))).mean()
