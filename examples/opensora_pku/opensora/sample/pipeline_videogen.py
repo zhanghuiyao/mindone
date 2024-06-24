@@ -790,12 +790,36 @@ class VideoGenPipeline(DiffusionPipeline):
             latents_list = ops.chunk(latents, sp_size, 0)
             latents = ops.concat(latents_list, axis=2)[:, :, :num_frames]
 
+
+
+        # zhy_test: dump
+        if get_sequence_parallel_state():
+            if hccl_info.rank % hccl_info.world_size == 0:
+                np.save(f"latent_before_decode_sp0.npy", latents.to(ms.float32).asnumpy())
+            elif hccl_info.rank % hccl_info.world_size == 1:
+                np.save(f"latent_before_decode_sp1.npy", latents.to(ms.float32).asnumpy())
+        else:
+            np.save(f"latent_before_decode.npy", latents.to(ms.float32).asnumpy())
+
+
+
         if not output_type == "latents":
             video = self.decode_latents(latents)
             video = video[:, :num_frames, :height, :width]
         else:
             video = latents
             return VideoPipelineOutput(video=video)
+
+
+        # zhy_test: dump
+        if get_sequence_parallel_state():
+            if hccl_info.rank % hccl_info.world_size == 0:
+                np.save(f"video_after_decode_sp0.npy", video.to(ms.float32).asnumpy())
+            elif hccl_info.rank % hccl_info.world_size == 1:
+                np.save(f"video_after_decode_sp1.npy", video.to(ms.float32).asnumpy())
+        else:
+            np.save(f"video_after_decode.npy", video.to(ms.float32).asnumpy())
+
 
         return VideoPipelineOutput(video=video)
 

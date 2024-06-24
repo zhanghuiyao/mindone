@@ -474,6 +474,11 @@ if __name__ == "__main__":
 
     # infer
     for step, data in tqdm(enumerate(ds_iter), total=dataset_size):
+
+        # zhy_test
+        if step == 1:
+            break
+
         prompt = [x for x in data["caption"]]
         file_paths = data["file_path"]
         videos = (
