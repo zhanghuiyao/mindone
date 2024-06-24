@@ -1902,6 +1902,31 @@ class LatteT2VBlock(nn.Cell):
         temp_pos_embed: Optional[ms.Tensor] = None,
         temp_attention_mask: Optional[ms.Tensor] = None,
     ):
+
+        # if self.enable_dump and self.is_first_block:
+        dump_names = [
+            "hidden_states", "attention_mask", "encoder_hidden_states_spatial", "encoder_attention_mask",
+            "timestep_spatial", "class_labels", "pos_hw"
+        ]
+        dump_names = [f"{s}_before_sb_0" for s in dump_names]
+        if get_sequence_parallel_state():
+            dump_names = [f"{s}_sp{hccl_info.rank}" for s in dump_names]
+        ops.TensorDump()(dump_names[0], hidden_states.to(ms.float32))
+        if attention_mask is not None:
+            ops.TensorDump()(dump_names[1], attention_mask.to(ms.float32))
+        if encoder_hidden_states_spatial is not None:
+            ops.TensorDump()(dump_names[2], encoder_hidden_states_spatial.to(ms.float32))
+        if encoder_attention_mask is not None:
+            ops.TensorDump()(dump_names[3], encoder_attention_mask.to(ms.float32))
+        if timestep_spatial is not None:
+            ops.TensorDump()(dump_names[4], timestep_spatial.to(ms.float32))
+        if class_labels is not None:
+            ops.TensorDump()(dump_names[5], class_labels.to(ms.float32))
+        if pos_hw is not None:
+            ops.TensorDump()(dump_names[6], pos_hw.to(ms.float32))
+        print(f"before_sb_0 - cross_attention_kwargs: {cross_attention_kwargs}")
+        print(f"before_sb_0 - hw: {hw}")
+
         hidden_states = self.spatial_block(
             hidden_states,
             attention_mask,

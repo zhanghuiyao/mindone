@@ -530,7 +530,7 @@ class LatteT2V(ModelMixin, ConfigMixin):
                     ops.TensorDump()(f"hidden_states_{i}", hidden_states.to(ms.float32))
 
                 # zhy_test break on first block
-                # break
+                break
 
         # if self.is_input_patches:
         if self.norm_type != "ada_norm_single":
