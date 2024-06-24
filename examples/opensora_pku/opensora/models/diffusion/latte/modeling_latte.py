@@ -527,6 +527,7 @@ class LatteT2V(ModelMixin, ConfigMixin):
             else:
                 ops.TensorDump()(f"hidden_states_{i}", hidden_states.to(ms.float32))
 
+            # zhy_test break on first block
             break
 
         # if self.is_input_patches:
