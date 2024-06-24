@@ -106,12 +106,6 @@ if __name__ == '__main__':
 
     print("\n============== run no sp ==============")
 
-    hidden_states = Tensor(full_hidden_states.transpose((1, 0, 2)))
-
-    # zhy_test
-    # timestep = Tensor(timestep_b6N.transpose((1, 0, 2)))
-    timestep = Tensor(np.load("3_temp_before_tb_0.npy"))
-
     out_no_sp = run_spatial_block(
         Tensor(full_hidden_states),
         Tensor(full_attention_mask),  # attention_mask
