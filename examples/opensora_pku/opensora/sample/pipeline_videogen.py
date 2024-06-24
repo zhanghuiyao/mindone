@@ -768,7 +768,7 @@ class VideoGenPipeline(DiffusionPipeline):
                         np.save(f"noise_pred_{i}_sp1.npy", noise_pred.to(ms.float32).asnumpy())
                 else:
                     np.save(f"noise_pred_{i}.npy", noise_pred.to(ms.float32).asnumpy())
-                assert 1 == 2
+                # assert 1 == 2
 
 
                 # perform guidance
