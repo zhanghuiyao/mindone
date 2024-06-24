@@ -110,7 +110,7 @@ if __name__ == '__main__':
     init_env(sp_size=2)
 
     # 2. load input
-    _hidden_states = np.load("_bak_test_blocks/dump_data/step00/0_tem_b_0_hidden_states.npy") # (f // sp, b, N) ~ (9, 2048, 1152)
+    _hidden_states = np.load("_bak_test_blocks/dump_data_tb/step00/0_tem_b_0_hidden_states.npy") # (f // sp, b, N) ~ (9, 2048, 1152)
     full_hidden_states = np.concatenate((_hidden_states[:], _hidden_states[:8, ...] * 0.3), axis=0)  # (f, b, N)
     if hccl_info.rank == 1:
         _hidden_states = _hidden_states[:] * 0.3
@@ -130,7 +130,7 @@ if __name__ == '__main__':
     # print(f"diff_rel_eps: {diff_rel_eps * 100:.2f}%")
     # print("==================================")
 
-    timestep_b6N = np.load("_bak_test_blocks/dump_data/step00/1_tem_b_4_timestep.npy")  # (6, b, N) ~ (6, 2048, 1152)
+    timestep_b6N = np.load("_bak_test_blocks/dump_data_tb/step00/1_tem_b_4_timestep.npy")  # (6, b, N) ~ (6, 2048, 1152)
     attention_mask = None
     encoder_hidden_states = None
     encoder_attention_mask = None
