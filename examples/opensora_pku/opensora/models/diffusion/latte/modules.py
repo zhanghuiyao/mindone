@@ -1915,16 +1915,17 @@ class LatteT2VBlock(nn.Cell):
         )
 
         # zhy_test: dump 4
-        if get_sequence_parallel_state():
-            if hccl_info.rank == 0:
-                ops.TensorDump()(f"hs_after_sb_0_sp0", hidden_states.to(ms.float32))
-                ops.TensorDump()(f"temp_pos_embed_0_sp0", temp_pos_embed.to(ms.float32))
-            elif hccl_info.rank == 1:
-                ops.TensorDump()(f"hs_after_sb_0_sp1", hidden_states.to(ms.float32))
-                ops.TensorDump()(f"temp_pos_embed_0_sp1", temp_pos_embed.to(ms.float32))
-        else:
-            ops.TensorDump()(f"hs_after_sb_0", hidden_states.to(ms.float32))
-            ops.TensorDump()(f"temp_pos_embed_0", temp_pos_embed.to(ms.float32))
+        if self.is_first_block:
+            if get_sequence_parallel_state():
+                if hccl_info.rank == 0:
+                    ops.TensorDump()(f"hs_after_sb_0_sp0", hidden_states.to(ms.float32))
+                    ops.TensorDump()(f"temp_pos_embed_0_sp0", temp_pos_embed.to(ms.float32))
+                elif hccl_info.rank == 1:
+                    ops.TensorDump()(f"hs_after_sb_0_sp1", hidden_states.to(ms.float32))
+                    ops.TensorDump()(f"temp_pos_embed_0_sp1", temp_pos_embed.to(ms.float32))
+            else:
+                ops.TensorDump()(f"hs_after_sb_0", hidden_states.to(ms.float32))
+                ops.TensorDump()(f"temp_pos_embed_0", temp_pos_embed.to(ms.float32))
 
 
         if enable_temporal_attentions:
@@ -1942,12 +1943,13 @@ class LatteT2VBlock(nn.Cell):
                     hidden_states_video = hidden_states_video + temp_pos_embed
 
                 # zhy_test: dump
-                if hccl_info.rank == 0:
-                    ops.TensorDump()("hs_before_tb_0_sp0", hidden_states.to(ms.float32))
-                    ops.TensorDump()("temp_before_tb_0_sp0", timestep_temp.to(ms.float32))
-                elif hccl_info.rank == 1:
-                    ops.TensorDump()("hs_before_tb_0_sp1", hidden_states.to(ms.float32))
-                    ops.TensorDump()("temp_before_tb_0_sp1", timestep_temp.to(ms.float32))
+                if self.is_first_block:
+                    if hccl_info.rank == 0:
+                        ops.TensorDump()("hs_before_tb_0_sp0", hidden_states_video.to(ms.float32))
+                        ops.TensorDump()("temp_before_tb_0_sp0", timestep_temp.to(ms.float32))
+                    elif hccl_info.rank == 1:
+                        ops.TensorDump()("hs_before_tb_0_sp1", hidden_states_video.to(ms.float32))
+                        ops.TensorDump()("temp_before_tb_0_sp1", timestep_temp.to(ms.float32))
 
 
                 hidden_states_video = self.temp_block(
@@ -1964,10 +1966,11 @@ class LatteT2VBlock(nn.Cell):
                 )
 
                 # zhy_test: dump 5
-                if hccl_info.rank == 0:
-                    ops.TensorDump()(f"hs_after_tb_0_sp0", hidden_states_video.to(ms.float32))
-                elif hccl_info.rank == 1:
-                    ops.TensorDump()(f"hs_after_tb_0_sp1", hidden_states_video.to(ms.float32))
+                if self.is_first_block:
+                    if hccl_info.rank == 0:
+                        ops.TensorDump()(f"hs_after_tb_0_sp0", hidden_states_video.to(ms.float32))
+                    elif hccl_info.rank == 1:
+                        ops.TensorDump()(f"hs_after_tb_0_sp1", hidden_states_video.to(ms.float32))
 
 
                 if use_image_num != 0:
@@ -1986,10 +1989,11 @@ class LatteT2VBlock(nn.Cell):
                 )
 
                 # zhy_test: dump 6
-                if hccl_info.rank == 0:
-                    ops.TensorDump()(f"hs_after_tb_after_trans_0_sp0", hidden_states.to(ms.float32))
-                elif hccl_info.rank == 1:
-                    ops.TensorDump()(f"hs_after_tb_after_trans_0_sp1", hidden_states.to(ms.float32))
+                if self.is_first_block:
+                    if hccl_info.rank == 0:
+                        ops.TensorDump()(f"hs_after_tb_after_trans_0_sp0", hidden_states.to(ms.float32))
+                    elif hccl_info.rank == 1:
+                        ops.TensorDump()(f"hs_after_tb_after_trans_0_sp1", hidden_states.to(ms.float32))
 
 
             else:
@@ -2033,8 +2037,9 @@ class LatteT2VBlock(nn.Cell):
                         hidden_states = hidden_states + temp_pos_embed
 
                     # zhy_test: dump
-                    ops.TensorDump()("hs_before_tb_0", hidden_states.to(ms.float32))
-                    ops.TensorDump()("temp_before_tb_0", timestep_temp.to(ms.float32))
+                    if self.is_first_block:
+                        ops.TensorDump()("hs_before_tb_0", hidden_states.to(ms.float32))
+                        ops.TensorDump()("temp_before_tb_0", timestep_temp.to(ms.float32))
 
                     hidden_states = self.temp_block(
                         hidden_states,
@@ -2051,7 +2056,8 @@ class LatteT2VBlock(nn.Cell):
 
 
                     # zhy_test: dump 7
-                    ops.TensorDump()(f"hs_after_tb_0", hidden_states.to(ms.float32))
+                    if self.is_first_block:
+                        ops.TensorDump()(f"hs_after_tb_0", hidden_states.to(ms.float32))
 
 
                     # (b t) f d -> (b f) t d
@@ -2064,7 +2070,8 @@ class LatteT2VBlock(nn.Cell):
 
 
                     # zhy_test: dump 8
-                    ops.TensorDump()(f"hs_after_tb_after_trans_0", hidden_states.to(ms.float32))
+                    if self.is_first_block:
+                        ops.TensorDump()(f"hs_after_tb_after_trans_0", hidden_states.to(ms.float32))
 
 
         return hidden_states

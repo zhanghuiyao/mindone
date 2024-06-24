@@ -488,13 +488,14 @@ class LatteT2V(ModelMixin, ConfigMixin):
         for i, block in enumerate(self.blocks):
 
             # zhy_test: dump 1
-            if get_sequence_parallel_state():
-                if hccl_info.rank == 0:
-                    ops.TensorDump()(f"block_in_hs_{i}_sp0", hidden_states.to(ms.float32))
-                elif hccl_info.rank == 1:
-                    ops.TensorDump()(f"block_in_hs_{i}_sp1", hidden_states.to(ms.float32))
-            else:
-                ops.TensorDump()(f"block_in_hs_{i}", hidden_states.to(ms.float32))
+            if i == 0:
+                if get_sequence_parallel_state():
+                    if hccl_info.rank == 0:
+                        ops.TensorDump()(f"block_in_hs_{i}_sp0", hidden_states.to(ms.float32))
+                    elif hccl_info.rank == 1:
+                        ops.TensorDump()(f"block_in_hs_{i}_sp1", hidden_states.to(ms.float32))
+                else:
+                    ops.TensorDump()(f"block_in_hs_{i}", hidden_states.to(ms.float32))
 
 
             hidden_states = block(
@@ -519,16 +520,17 @@ class LatteT2V(ModelMixin, ConfigMixin):
             )
 
             # zhy_test: dump 2
-            if get_sequence_parallel_state():
-                if hccl_info.rank == 0:
-                    ops.TensorDump()(f"hidden_states_{i}_sp0", hidden_states.to(ms.float32))
-                elif hccl_info.rank == 1:
-                    ops.TensorDump()(f"hidden_states_{i}_sp1", hidden_states.to(ms.float32))
-            else:
-                ops.TensorDump()(f"hidden_states_{i}", hidden_states.to(ms.float32))
+            if i == 0:
+                if get_sequence_parallel_state():
+                    if hccl_info.rank == 0:
+                        ops.TensorDump()(f"hidden_states_{i}_sp0", hidden_states.to(ms.float32))
+                    elif hccl_info.rank == 1:
+                        ops.TensorDump()(f"hidden_states_{i}_sp1", hidden_states.to(ms.float32))
+                else:
+                    ops.TensorDump()(f"hidden_states_{i}", hidden_states.to(ms.float32))
 
-            # zhy_test break on first block
-            break
+                # zhy_test break on first block
+                # break
 
         # if self.is_input_patches:
         if self.norm_type != "ada_norm_single":
