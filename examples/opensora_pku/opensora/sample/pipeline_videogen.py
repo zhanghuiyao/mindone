@@ -752,16 +752,16 @@ class VideoGenPipeline(DiffusionPipeline):
                     encoder_attention_mask=prompt_embeds_mask,  # (b n)
                 )
 
-                if i == 0:
-                    # zhy_test: dump 3
-                    if get_sequence_parallel_state():
-                        if hccl_info.rank % hccl_info.world_size == 0:
-                            np.save("noise_pred_0_sp0.npy", noise_pred.to(ms.float32).asnumpy())
-                        elif hccl_info.rank % hccl_info.world_size == 1:
-                            np.save("noise_pred_0_sp1.npy", noise_pred.to(ms.float32).asnumpy())
-                    else:
-                        np.save("noise_pred_0.npy", noise_pred.to(ms.float32).asnumpy())
-                    assert 1 == 2
+                # zhy_test: dump 3
+                if get_sequence_parallel_state():
+                    if hccl_info.rank % hccl_info.world_size == 0:
+                        np.save(f"noise_pred_{i}_sp0.npy", noise_pred.to(ms.float32).asnumpy())
+                    elif hccl_info.rank % hccl_info.world_size == 1:
+                        np.save(f"noise_pred_{i}_sp1.npy", noise_pred.to(ms.float32).asnumpy())
+                else:
+                    np.save(f"noise_pred_{i}.npy", noise_pred.to(ms.float32).asnumpy())
+                # assert 1 == 2
+
 
                 # perform guidance
                 if do_classifier_free_guidance:
