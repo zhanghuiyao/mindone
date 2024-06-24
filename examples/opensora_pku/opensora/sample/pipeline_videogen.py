@@ -730,11 +730,11 @@ class VideoGenPipeline(DiffusionPipeline):
         # FIXME: zhy_test 3
         if get_sequence_parallel_state():
             latents, temp_attention_mask = self.prepare_parallel_latent(latents)
+            temp_attention_mask = ops.cat([temp_attention_mask] * 2) \
+                if (do_classifier_free_guidance and temp_attention_mask is not None) else temp_attention_mask
 
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
-                temp_attention_mask = ops.cat([temp_attention_mask] * 2) \
-                    if (do_classifier_free_guidance and temp_attention_mask is not None) else temp_attention_mask
                 latent_model_input = ops.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
