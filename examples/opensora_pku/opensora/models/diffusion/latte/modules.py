@@ -1879,6 +1879,7 @@ class LatteT2VBlock(nn.Cell):
         self.spatial_block = spatial_block
         self.temp_block = temp_block
         self.is_first_block = block_id == 0
+        self.enable_dump = False
 
     def construct(
         self,
@@ -1915,7 +1916,7 @@ class LatteT2VBlock(nn.Cell):
         )
 
         # zhy_test: dump 4
-        if self.is_first_block:
+        if self.enable_dump and self.is_first_block:
             if get_sequence_parallel_state():
                 if hccl_info.rank == 0:
                     ops.TensorDump()(f"hs_after_sb_0_sp0", hidden_states.to(ms.float32))
@@ -1943,7 +1944,7 @@ class LatteT2VBlock(nn.Cell):
                     hidden_states_video = hidden_states_video + temp_pos_embed
 
                 # zhy_test: dump
-                if self.is_first_block:
+                if self.enable_dump and self.is_first_block:
                     if hccl_info.rank == 0:
                         ops.TensorDump()("hs_before_tb_0_sp0", hidden_states_video.to(ms.float32))
                         ops.TensorDump()("temp_before_tb_0_sp0", timestep_temp.to(ms.float32))
@@ -1966,7 +1967,7 @@ class LatteT2VBlock(nn.Cell):
                 )
 
                 # zhy_test: dump 5
-                if self.is_first_block:
+                if self.enable_dump and self.is_first_block:
                     if hccl_info.rank == 0:
                         ops.TensorDump()(f"hs_after_tb_0_sp0", hidden_states_video.to(ms.float32))
                     elif hccl_info.rank == 1:
@@ -1989,7 +1990,7 @@ class LatteT2VBlock(nn.Cell):
                 )
 
                 # zhy_test: dump 6
-                if self.is_first_block:
+                if self.enable_dump and self.is_first_block:
                     if hccl_info.rank == 0:
                         ops.TensorDump()(f"hs_after_tb_after_trans_0_sp0", hidden_states.to(ms.float32))
                     elif hccl_info.rank == 1:
@@ -2037,7 +2038,7 @@ class LatteT2VBlock(nn.Cell):
                         hidden_states = hidden_states + temp_pos_embed
 
                     # zhy_test: dump
-                    if self.is_first_block:
+                    if self.enable_dump and self.is_first_block:
                         ops.TensorDump()("hs_before_tb_0", hidden_states.to(ms.float32))
                         ops.TensorDump()("temp_before_tb_0", timestep_temp.to(ms.float32))
 
@@ -2056,7 +2057,7 @@ class LatteT2VBlock(nn.Cell):
 
 
                     # zhy_test: dump 7
-                    if self.is_first_block:
+                    if self.enable_dump and self.is_first_block:
                         ops.TensorDump()(f"hs_after_tb_0", hidden_states.to(ms.float32))
 
 
@@ -2070,7 +2071,7 @@ class LatteT2VBlock(nn.Cell):
 
 
                     # zhy_test: dump 8
-                    if self.is_first_block:
+                    if self.enable_dump and self.is_first_block:
                         ops.TensorDump()(f"hs_after_tb_after_trans_0", hidden_states.to(ms.float32))
 
 
