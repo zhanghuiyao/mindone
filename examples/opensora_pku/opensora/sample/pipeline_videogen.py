@@ -550,7 +550,7 @@ class VideoGenPipeline(DiffusionPipeline):
             video_states = ops.pad(video_states, (0, 0, 0, 0, 0, padding_needed), mode="constant", value=0)
 
             b, _, f, h, w = video_states.shape
-            temp_attention_mask = ops.ones((b * h * w, 1, f), ms.int32)
+            temp_attention_mask = ops.ones((b * h * w // 4, 1, f), ms.int32)
             temp_attention_mask[:, :, -padding_needed:] = 0
 
         assert video_states.shape[2] % sp_size == 0
@@ -733,6 +733,8 @@ class VideoGenPipeline(DiffusionPipeline):
 
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
+                temp_attention_mask = ops.cat([temp_attention_mask] * 2) \
+                    if (do_classifier_free_guidance and temp_attention_mask is not None) else temp_attention_mask
                 latent_model_input = ops.cat([latents] * 2) if do_classifier_free_guidance else latents
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
