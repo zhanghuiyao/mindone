@@ -66,6 +66,7 @@ class DiffusionWithLoss(nn.Cell):
         #     else ops.Broadcast(root_rank=int(hccl_info.group_id * hccl_info.world_size), group=hccl_info.group)
         self.reduce_t = None if not get_sequence_parallel_state() else ops.AllReduce(group=hccl_info.group)
         self.sp_size = 1 if not get_sequence_parallel_state() else hccl_info.world_size
+        self.all_gather = None if not get_sequence_parallel_state() else ops.AllGather(group=hccl_info.group)
 
     def get_condition_embeddings(self, text_tokens, encoder_attention_mask):
         # text conditions inputs for cross-attention
@@ -198,8 +199,8 @@ class DiffusionWithLoss(nn.Cell):
         ops.TensorDump()(f"full_input_text_embed_sp{hccl_info.rank}.npy", text_embed)
         ops.TensorDump()(f"full_input_encoder_attention_mask_sp{hccl_info.rank}.npy", encoder_attention_mask)
 
-
         if get_sequence_parallel_state():
+            x = self.all_gather(x[None])[0]
             x, text_embed, attention_mask, encoder_attention_mask, use_image_num, temp_attention_mask = \
                 prepare_parallel_data(x, text_embed, attention_mask, encoder_attention_mask, use_image_num)
         else:
@@ -210,11 +211,13 @@ class DiffusionWithLoss(nn.Cell):
         if get_sequence_parallel_state():
             t = self.reduce_t(t) // self.sp_size
 
-        # dump input
-        ops.TensorDump()(f"full_input_timestep_sp{hccl_info.rank}.npy", t)
-
         noise = ops.randn_like(x)
         x_t = self.diffusion.q_sample(x, t, noise=noise)
+
+        # dump input
+        ops.TensorDump()(f"part_input_timestep_sp{hccl_info.rank}.npy", t)
+        ops.TensorDump()(f"part_input_noise_sp{hccl_info.rank}.npy", noise)
+        ops.TensorDump()(f"part_input_xt_sp{hccl_info.rank}.npy", x_t)
 
         # latte forward input match
         # text embed: (b n_tokens  d) -> (b  1 n_tokens d)

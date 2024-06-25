@@ -411,7 +411,7 @@ def create_dataloader(
         column_names=column_names,
         num_shards=device_num,
         shard_id=rank_id,
-        python_multiprocessing=False, # FIXME: zhy_test
+        python_multiprocessing=True,
         shuffle=shuffle,
         num_parallel_workers=num_parallel_workers,
         max_rowsize=max_rowsize,
