@@ -98,7 +98,7 @@ class SpatialNorm(nn.Cell):
     ):
         super().__init__()
         self.norm_layer = nn.GroupNorm(num_channels=f_channels, num_groups=32, eps=1e-6, affine=True)
-        self.conv_y = nn.Conv2d(zq_channels, f_channels, kernel_size=1, stride=1, padding=0)
+        self.conv_y = nn.Conv2d(zq_channels, f_channels, kernel_size=1, stride=1, ding=0)
         self.conv_b = nn.Conv2d(zq_channels, f_channels, kernel_size=1, stride=1, padding=0)
 
     def construct(self, f: ms.Tensor, zq: ms.Tensor) -> ms.Tensor:

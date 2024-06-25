@@ -197,7 +197,7 @@ def prepare_parallel_data(hidden_states, encoder_hidden_states, attention_mask, 
 
             # FIXME: zhy_test mask
             b, _, f, h, w = video_states.shape
-            temp_attention_mask = ops.ones((b * h * w, 1, f), ms.int32)
+            temp_attention_mask = ops.ones((b * h * w // 4, 1, f), ms.int32)
             temp_attention_mask[:, :, -padding_needed:] = 0
 
 

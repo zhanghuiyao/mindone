@@ -190,13 +190,73 @@ class DiffusionWithLoss(nn.Cell):
 
         return vb
 
-    # FIXME: zhy_test mask
     def compute_loss(self, x, text_embed, encoder_attention_mask, attention_mask=None):
+        use_image_num = self.use_image_num
+
+        # dump input
+        ops.TensorDump()(f"full_input_x_sp{hccl_info.rank}.npy", x)
+        ops.TensorDump()(f"full_input_text_embed_sp{hccl_info.rank}.npy", text_embed)
+        ops.TensorDump()(f"full_input_encoder_attention_mask_sp{hccl_info.rank}.npy", encoder_attention_mask)
+
+
+        if get_sequence_parallel_state():
+            x, text_embed, attention_mask, encoder_attention_mask, use_image_num, temp_attention_mask = \
+                prepare_parallel_data(x, text_embed, attention_mask, encoder_attention_mask, use_image_num)
+        else:
+            temp_attention_mask = None
+
+        t = ops.randint(0, self.diffusion.num_timesteps, (x.shape[0],), dtype=ms.int32)
+
+        if get_sequence_parallel_state():
+            t = self.reduce_t(t) // self.sp_size
+
+        # dump input
+        ops.TensorDump()(f"full_input_timestep_sp{hccl_info.rank}.npy", t)
+
+        noise = ops.randn_like(x)
+        x_t = self.diffusion.q_sample(x, t, noise=noise)
+
+        # latte forward input match
+        # text embed: (b n_tokens  d) -> (b  1 n_tokens d)
+        # text_embed = ops.expand_dims(text_embed, axis=1)
+
+        """
+        model_output = self.apply_model(
+            x_t,
+            t,
+            encoder_hidden_states=text_embed,
+            attention_mask=attention_mask,
+            encoder_attention_mask=encoder_attention_mask,
+            temp_attention_mask=temp_attention_mask,  # FIXME: zhy_test mask
+            use_image_num=use_image_num,
+        )
+
+        # (b c t h w),
+        B, C, F = x_t.shape[:3]
+        assert (
+            model_output.shape == (B, C * 2, F) + x_t.shape[3:]
+        ), f"model_output shape {model_output.shape} and x_t shape {x_t.shape} mismatch!"
+        model_output, model_var_values = ops.split(model_output, C, axis=1)
+
+        # Learn the variance using the variational bound, but don't let it affect our mean prediction.
+        vb = self._cal_vb(ops.stop_gradient(model_output), model_var_values, x, x_t, t)
+
+        loss = mean_flat((noise - model_output) ** 2) + vb
+        loss = loss.mean()
+        """
+
+        loss = x_t.mean()
+
+        return loss
+
+    def bak_compute_loss(self, x, text_embed, encoder_attention_mask, attention_mask=None):
         use_image_num = self.use_image_num
 
         if get_sequence_parallel_state():
             x, text_embed, attention_mask, encoder_attention_mask, use_image_num, temp_attention_mask = \
                 prepare_parallel_data(x, text_embed, attention_mask, encoder_attention_mask, use_image_num)
+        else:
+            temp_attention_mask = None
 
         t = ops.randint(0, self.diffusion.num_timesteps, (x.shape[0],), dtype=ms.int32)
 
@@ -232,3 +292,4 @@ class DiffusionWithLoss(nn.Cell):
         loss = mean_flat((noise - model_output) ** 2) + vb
         loss = loss.mean()
         return loss
+
