@@ -5,6 +5,8 @@ from mindspore import nn, ops
 
 from .conv import CausalConv3d
 
+from mindone.models.modules.flash_attention import FLASH_IS_AVAILABLE, MSFlashAttention
+
 _logger = logging.getLogger(__name__)
 
 
@@ -60,7 +62,7 @@ class AttnBlock(nn.Cell):
 
 
 class AttnBlock3DFix(nn.Cell):
-    def __init__(self, in_channels, dtype=ms.float32):
+    def __init__(self, in_channels, dtype=ms.float32, enable_fa=True):
         super().__init__()
         self.in_channels = in_channels
         self.dtype = dtype
@@ -75,6 +77,19 @@ class AttnBlock3DFix(nn.Cell):
         self.proj_out = CausalConv3d(in_channels, in_channels, kernel_size=1, stride=1)
         self.softmax = nn.Softmax(axis=2)
 
+        self.enable_fa = enable_fa
+        self.fa_dtype = ms.bfloat16
+        if self.enable_fa:
+            self.flash_attention = MSFlashAttention(
+                head_dim=in_channels,
+                head_num=1,
+                fix_head_dims=None,
+                attention_dropout=0.0,
+                dtype=self.fa_dtype,
+                input_layout="BNSD",
+            )
+
+
     def construct(self, x):
         # q shape: (b c t h w)
         h_ = x
@@ -83,35 +98,58 @@ class AttnBlock3DFix(nn.Cell):
         k = self.k(h_)
         v = self.v(h_)
 
-        # compute attention
-        # q: (b c t h w) -> (b t c h w) -> (b*t c h*w) -> (b*t h*w c)
-        b, c, t, h, w = q.shape
-        q = q.permute(0, 2, 1, 3, 4)
-        q = ops.reshape(q, (b * t, c, h * w))
-        q = q.permute(0, 2, 1)  # b,hw,c
+        if self.enable_fa:
 
-        # k: (b c t h w) -> (b t c h w) -> (b*t c h*w)
-        k = k.permute(0, 2, 1, 3, 4)
-        k = ops.reshape(k, (b * t, c, h * w))
+            # BNSD: ()(b*t, hn, h*w, hd), c->hd, 1->hn
+            # (b c t h w) -> (b t h w c) -> (b*t 1 h*w c)
+            b, c, t, h, w = q.shape
+            q = q.permute(0, 2, 3, 4, 1).view(b*t, 1, h*w, c)
+            k = k.permute(0, 2, 3, 4, 1).view(b * t, 1, h * w, c)
+            v = v.permute(0, 2, 3, 4, 1).view(b * t, 1, h * w, c)
 
-        # w: (b*t hw hw)
-        # TODO: support Flash Attention
-        w_ = self.bmm(q, k)  # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
-        w_ = w_ * (int(c) ** (-0.5))
-        # FIXME: cast w_ to FP32 in amp
-        w_ = self.softmax(w_)
+            _dtype = q.dtype
+            q = q.to(self.fa_dtype)
+            k = k.to(self.fa_dtype)
+            v = v.to(self.fa_dtype)
 
-        # attend to values
-        # v: (b c t h w) -> (b t c h w) -> (bt c hw)
-        # w_: (bt hw hw) -> (bt hw hw)
-        v = v.permute(0, 2, 1, 3, 4)
-        v = ops.reshape(v, (b * t, c, h * w))
-        w_ = ops.transpose(w_, (0, 2, 1))  # b,hw,hw (first hw of k, second of q)
-        h_ = self.bmm(v, w_)  # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
+            h_ = self.flash_attention(q, k, v, None)
 
-        # h_: (b*t c hw) -> (b t c h w) -> (b c t h w)
-        h_ = ops.reshape(h_, (b, t, c, h, w))
-        h_ = h_.permute(0, 2, 1, 3, 4)
+            h_ = h_.to(_dtype)
+
+            # (b*t 1 h*w c) -> (b c t h w)
+            h_ = h_.view(b, t, h, w, c).permute(0, 4, 1, 2, 3)
+
+        else:
+
+            # compute attention
+            # q: (b c t h w) -> (b t c h w) -> (b*t c h*w) -> (b*t h*w c)
+            b, c, t, h, w = q.shape
+            q = q.permute(0, 2, 1, 3, 4)
+            q = ops.reshape(q, (b * t, c, h * w))
+            q = q.permute(0, 2, 1)  # b,hw,c
+
+            # k: (b c t h w) -> (b t c h w) -> (b*t c h*w)
+            k = k.permute(0, 2, 1, 3, 4)
+            k = ops.reshape(k, (b * t, c, h * w))
+
+            # w: (b*t hw hw)
+            # TODO: support Flash Attention
+            w_ = self.bmm(q, k)  # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
+            w_ = w_ * (int(c) ** (-0.5))
+            # FIXME: cast w_ to FP32 in amp
+            w_ = self.softmax(w_)
+
+            # attend to values
+            # v: (b c t h w) -> (b t c h w) -> (bt c hw)
+            # w_: (bt hw hw) -> (bt hw hw)
+            v = v.permute(0, 2, 1, 3, 4)
+            v = ops.reshape(v, (b * t, c, h * w))
+            w_ = ops.transpose(w_, (0, 2, 1))  # b,hw,hw (first hw of k, second of q)
+            h_ = self.bmm(v, w_)  # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
+
+            # h_: (b*t c hw) -> (b t c h w) -> (b c t h w)
+            h_ = ops.reshape(h_, (b, t, c, h, w))
+            h_ = h_.permute(0, 2, 1, 3, 4)
 
         h_ = self.proj_out(h_)
 
