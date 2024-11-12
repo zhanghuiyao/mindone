@@ -85,14 +85,13 @@ def _tensors_allreduce_and_split_with_squaresum(degree, mean, all_reduce_op, sha
         grad = F.tensor_mul(grad, F.cast(degree, F.dtype(grad)))
 
     # get square_sum
-    square_sum = ops.square(grad).sum()
+    square_sum = ops.square(grad).sum().astype(ms.float32)
 
     # split
     if grad.shape[0] % shard_size == 0:
         grad = ops.Split(0, shard_size)(grad)[shard_id]
 
     return grad, square_sum
-
 
 
 class AdamWeightDecayZeRO1(nn.Optimizer):
@@ -263,8 +262,8 @@ class AdamWeightDecayZeRO1(nn.Optimizer):
             gradients
         )
 
-        part_gradients = [out[0] for out in output_tuples]
-        grads_square_sum = [out[1] for out in output_tuples]
+        part_gradients = (out[0] for out in output_tuples)
+        grads_square_sum = (out[1] for out in output_tuples)
 
         total_norm = ops.sqrt(ops.addn(grads_square_sum))
 
