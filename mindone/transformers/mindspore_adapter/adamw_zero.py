@@ -17,7 +17,7 @@ allreduce_op = ops.MultitypeFuncGraph("reduce_op")
 allreduce_and_split_op = ops.MultitypeFuncGraph("reduce_and_split_op")
 reducescatter_and_split_op = ops.MultitypeFuncGraph("reducescatter_and_split_op")
 allreduce_and_split_with_squaresum_op = ops.MultitypeFuncGraph("reduce_and_split_with_norm_op")
-allreduce_and_split_with_squaresum_op_2 = ops.MultitypeFuncGraph("allreduce_and_split_with_squaresum_op_2")
+
 
 @update_params_with_all_gather.register("Tensor", "Tensor", "Function")
 def _update_params_with_all_gather(param, update, all_gather):
@@ -77,8 +77,8 @@ def _tensors_reducescatter_and_split(degree, mean, reduce_scatter_op, all_reduce
     return grad
 
 
-@allreduce_and_split_with_squaresum_op.register("Number", "Bool", "Function", "Number", "Number", "Tensor")
-def _tensors_allreduce_and_split_with_squaresum(degree, mean, all_reduce_op, shard_id, shard_size, grad):
+@allreduce_and_split_with_squaresum_op.register("Number", "Bool", "Function", "Number", "Number", "Tensor", "Tensor")
+def _tensors_allreduce_and_split_with_squaresum(degree, mean, all_reduce_op, shard_id, shard_size, grad, grad_square_sum):
     # allreduce
     grad = all_reduce_op(grad)
     if mean:
@@ -86,21 +86,13 @@ def _tensors_allreduce_and_split_with_squaresum(degree, mean, all_reduce_op, sha
 
     # get square_sum
     square_sum = ops.square(grad).sum()
+    grad = ops.depend(grad, ops.assign(grad_square_sum, square_sum))
 
     # split
     if grad.shape[0] % shard_size == 0:
         grad = ops.Split(0, shard_size)(grad)[shard_id]
 
-    return grad #, square_sum
-
-
-@allreduce_and_split_with_squaresum_op_2.register("Number", "Bool", "Function", "Number", "Number", "Tensor")
-def _tensors_allreduce_and_split_with_squaresum_2(degree, mean, all_reduce_op, shard_id, shard_size, grad):
-
-    # get square_sum
-    square_sum = ops.square(grad).sum()
-
-    return square_sum
+    return grad
 
 
 class AdamWeightDecayZeRO1(nn.Optimizer):
@@ -166,6 +158,11 @@ class AdamWeightDecayZeRO1(nn.Optimizer):
             self.mean = context.get_auto_parallel_context("gradients_mean")
             self.degree = context.get_auto_parallel_context("device_num")
             self.degree = 1. / self.degree
+
+            # for clip grad norm
+            self.gradients_square_sum = ParameterTuple([
+                Parameter(Tensor(0., dtype=momentum_dtype), name="gradients_square_sum." + p.name) for p in self._parameters
+            ])
 
         total_num = len(self.all_gather_ops)
         split_num = sum([1 for _op in self.all_gather_ops if isinstance(_op, ops.AllGather)])
@@ -268,17 +265,10 @@ class AdamWeightDecayZeRO1(nn.Optimizer):
     def grad_allreduce_and_split_with_l2norm(self, mean, degree, shard_id, shard_size, gradients):
         part_gradients = ops.HyperMap()(
             F.partial(allreduce_and_split_with_squaresum_op, degree, mean, self.all_reduce_op, shard_id, shard_size),
-            gradients
-        )
-        grads_square_sum = ops.HyperMap()(
-            F.partial(allreduce_and_split_with_squaresum_op_2, degree, mean, self.all_reduce_op, shard_id, shard_size),
-            gradients
+            gradients, self.gradients_square_sum
         )
 
-        # part_gradients = (out[0] for out in output_tuples)
-        # grads_square_sum = (out[1] for out in output_tuples)
-
-        total_norm = ops.sqrt(ops.addn(grads_square_sum))
+        total_norm = ops.sqrt(ops.addn(self.gradients_square_sum))
 
         return part_gradients, total_norm
 
