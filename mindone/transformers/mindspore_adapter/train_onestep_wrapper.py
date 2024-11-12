@@ -101,7 +101,7 @@ class TrainOneStepWrapper(nn.Cell):
         super().__init__(auto_prefix=False)
 
         if is_adamw_zero_available and isinstance(optimizer, (AdamWeightDecayZeRO1, AdamWeightDecayZeRO2)):
-            assert hasattr(self.optimizer, "grad_reduce")
+            assert hasattr(optimizer, "grad_reduce")
             reducer = None
             if optimizer.shard_size > 1:
                 is_zero = True
