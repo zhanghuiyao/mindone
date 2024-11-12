@@ -258,10 +258,14 @@ class AdamWeightDecayZeRO1(nn.Optimizer):
 
     @ms.jit
     def grad_allreduce_and_split_with_l2norm(self, mean, degree, shard_id, shard_size, gradients):
-        part_gradients, grads_square_sum = ops.HyperMap()(
+        output_tuples = ops.HyperMap()(
             F.partial(allreduce_and_split_with_squaresum_op, degree, mean, self.all_reduce_op, shard_id, shard_size),
             gradients
         )
+
+        part_gradients = [out[0] for out in output_tuples]
+        grads_square_sum = [out[1] for out in output_tuples]
+
         total_norm = ops.sqrt(ops.addn(grads_square_sum))
 
         return part_gradients, total_norm
