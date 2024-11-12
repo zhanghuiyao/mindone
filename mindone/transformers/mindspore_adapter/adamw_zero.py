@@ -17,7 +17,7 @@ allreduce_op = ops.MultitypeFuncGraph("reduce_op")
 allreduce_and_split_op = ops.MultitypeFuncGraph("reduce_and_split_op")
 reducescatter_and_split_op = ops.MultitypeFuncGraph("reducescatter_and_split_op")
 allreduce_and_split_with_squaresum_op = ops.MultitypeFuncGraph("reduce_and_split_with_norm_op")
-
+allreduce_and_split_with_squaresum_op_2 = ops.MultitypeFuncGraph("allreduce_and_split_with_squaresum_op_2")
 
 @update_params_with_all_gather.register("Tensor", "Tensor", "Function")
 def _update_params_with_all_gather(param, update, all_gather):
@@ -85,13 +85,22 @@ def _tensors_allreduce_and_split_with_squaresum(degree, mean, all_reduce_op, sha
         grad = F.tensor_mul(grad, F.cast(degree, F.dtype(grad)))
 
     # get square_sum
-    square_sum = ops.square(grad).sum().astype(ms.float32)
+    square_sum = ops.square(grad).sum()
 
     # split
     if grad.shape[0] % shard_size == 0:
         grad = ops.Split(0, shard_size)(grad)[shard_id]
 
-    return grad, square_sum
+    return grad #, square_sum
+
+
+@allreduce_and_split_with_squaresum_op_2.register("Number", "Bool", "Function", "Number", "Number", "Tensor")
+def _tensors_allreduce_and_split_with_squaresum_2(degree, mean, all_reduce_op, shard_id, shard_size, grad):
+
+    # get square_sum
+    square_sum = ops.square(grad).sum()
+
+    return square_sum
 
 
 class AdamWeightDecayZeRO1(nn.Optimizer):
@@ -257,13 +266,17 @@ class AdamWeightDecayZeRO1(nn.Optimizer):
 
     @ms.jit
     def grad_allreduce_and_split_with_l2norm(self, mean, degree, shard_id, shard_size, gradients):
-        output_tuples = ops.HyperMap()(
+        part_gradients = ops.HyperMap()(
             F.partial(allreduce_and_split_with_squaresum_op, degree, mean, self.all_reduce_op, shard_id, shard_size),
             gradients
         )
+        grads_square_sum = ops.HyperMap()(
+            F.partial(allreduce_and_split_with_squaresum_op_2, degree, mean, self.all_reduce_op, shard_id, shard_size),
+            gradients
+        )
 
-        part_gradients = (out[0] for out in output_tuples)
-        grads_square_sum = (out[1] for out in output_tuples)
+        # part_gradients = (out[0] for out in output_tuples)
+        # grads_square_sum = (out[1] for out in output_tuples)
 
         total_norm = ops.sqrt(ops.addn(grads_square_sum))
 
