@@ -81,15 +81,7 @@ def _clip_grad_l2norm(max_norm, grads):
     return clipped_grads
 
 
-def _clip_grad_l2norm_for_zero(max_norm, total_norm, grads):
-    clip_coef = max_norm / (total_norm + 1e-6)
-    clip_coef_clamped = ops.clamp(clip_coef, None, 1.0)
-
-    clipped_grads = hyper_map_op(F.partial(_apply_global_norm, clip_coef_clamped), grads)
-    return clipped_grads
-
-
-def _clip_grad_l2norm_for_zero_accum(max_norm, all_reduce_op, part_grads):
+def _clip_grad_l2norm_for_zero(max_norm, all_reduce_op, part_grads):
 
     grads_square_sum = hyper_map_op(F.partial(_square_sum_and_all_reduce, all_reduce_op), part_grads)
     total_norm = ops.sqrt(ops.addn(grads_square_sum))
@@ -110,9 +102,5 @@ def clip_grad_norm(grads, max_norm):
     return _clip_grad_l2norm(max_norm, grads)
 
 
-def clip_grad_norm_for_zero(grads, total_norm, max_norm):
-    return _clip_grad_l2norm_for_zero(max_norm, total_norm, grads)
-
-
-def clip_grad_norm_for_zero_accum(part_grads, max_norm, all_reduce_op):
-    return _clip_grad_l2norm_for_zero_accum(max_norm, all_reduce_op, part_grads)
+def clip_grad_norm_for_zero(part_grads, max_norm, all_reduce_op):
+    return _clip_grad_l2norm_for_zero(max_norm, all_reduce_op, part_grads)

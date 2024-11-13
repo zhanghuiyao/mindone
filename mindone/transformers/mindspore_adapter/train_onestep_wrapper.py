@@ -105,6 +105,7 @@ class TrainOneStepWrapper(nn.Cell):
             reducer = None
             if optimizer.shard_size > 1:
                 is_zero = True
+                self.reduce_op_for_clip_grad = ops.AllReduce(group=optimizer.comm_group)
             else:
                 is_zero = False
         else:
@@ -121,7 +122,6 @@ class TrainOneStepWrapper(nn.Cell):
 
             if is_zero:
                 self.accumulated_grads = optimizer.moments1.clone(prefix="accum_grad", init="zeros")  # split grads
-                self.reduce_op_for_clip_grad = ops.AllReduce(group=optimizer.comm_group)
             else:
                 self.accumulated_grads = optimizer.parameters.clone(prefix="accum_grad", init="zeros")
 
@@ -175,12 +175,8 @@ class TrainOneStepWrapper(nn.Cell):
         if clip_grad.lower() in ("norm", "l2norm", "l2_norm", "global", "global_norm", "total", "total_norm"):
             self.is_clip_norm = True
             if self.is_zero:
-                if gradient_accumulation_steps == 1:
-                    from mindone.transformers.mindspore_adapter.clip_grad import clip_grad_norm_for_zero
-                    clip_grad_fn = clip_grad_norm_for_zero
-                else:
-                    from mindone.transformers.mindspore_adapter.clip_grad import clip_grad_norm_for_zero_accum
-                    clip_grad_fn = clip_grad_norm_for_zero_accum
+                from mindone.transformers.mindspore_adapter.clip_grad import clip_grad_norm_for_zero
+                clip_grad_fn = clip_grad_norm_for_zero
             else:
                 from mindone.transformers.mindspore_adapter.clip_grad import clip_grad_norm
                 clip_grad_fn = clip_grad_norm
@@ -193,12 +189,12 @@ class TrainOneStepWrapper(nn.Cell):
             raise NotImplementedError
         self.clip_grad_fn = clip_grad_fn
 
-    def do_optim(self, loss, grads, total_norm=None):
+    def do_optim(self, loss, grads):
 
         if self.accum_steps == 1:
             if self.clip_grad_fn is not None:
                 if self.is_zero and self.is_clip_norm:
-                    grads = self.clip_grad_fn(grads, total_norm, self.clip_value)
+                    grads = self.clip_grad_fn(grads, self.clip_value, self.reduce_op_for_clip_grad)
                 else:
                     grads = self.clip_grad_fn(grads, self.clip_value)
             loss = ops.depend(loss, self.optimizer(grads))
@@ -237,17 +233,8 @@ class TrainOneStepWrapper(nn.Cell):
         loss = self.network(*inputs)
         sens = ops.fill(loss.dtype, loss.shape, self.scaler.scale_value)
         grads = self.grad_fn(*inputs, sens)
-        total_norm = None
         if self.is_zero:
-            if (
-                    self.clip_grad_fn is not None
-                    and self.is_clip_norm
-                    and self.accum_steps == 1
-            ):
-                grads, total_norm = self.optimizer.grad_reduce(grads, return_norm=True)
-                total_norm = self.scaler.unscale(total_norm)
-            else:
-                grads = self.optimizer.grad_reduce(grads)
+            grads = self.optimizer.grad_reduce(grads)
         else:
             grads = self.reducer(grads)
         unscaled_grads = self.scaler.unscale(grads)
@@ -258,11 +245,11 @@ class TrainOneStepWrapper(nn.Cell):
         finite = ops.depend(finite, self.scaler.adjust(finite)).to(ms.bool_)
 
         if not self.drop_overflow_step:
-            loss = self.do_optim(loss, unscaled_grads, total_norm)
+            loss = self.do_optim(loss, unscaled_grads)
             loss = loss.to(ms.float32)
         else:
             if finite:
-                loss = self.do_optim(loss, unscaled_grads, total_norm)
+                loss = self.do_optim(loss, unscaled_grads)
                 loss = loss.to(ms.float32)
             else:
                 # FIXME: has bug when run amp fp16 on MindSpore 2.3
