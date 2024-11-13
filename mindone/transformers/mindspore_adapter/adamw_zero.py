@@ -16,7 +16,6 @@ update_params_with_all_gather = ops.MultitypeFuncGraph("update_params_with_all_g
 allreduce_op = ops.MultitypeFuncGraph("reduce_op")
 allreduce_and_split_op = ops.MultitypeFuncGraph("reduce_and_split_op")
 reducescatter_and_split_op = ops.MultitypeFuncGraph("reducescatter_and_split_op")
-allreduce_and_split_with_squaresum_op = ops.MultitypeFuncGraph("reduce_and_split_with_norm_op")
 
 
 @update_params_with_all_gather.register("Tensor", "Tensor", "Function")
