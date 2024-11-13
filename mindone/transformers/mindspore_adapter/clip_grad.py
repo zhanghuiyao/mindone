@@ -89,10 +89,11 @@ def _clip_grad_l2norm_for_zero(max_norm, all_reduce_op, part_grads):
     # ops.TensorDump()("total_norm", total_norm.astype(ms.float32))
 
     clip_coef = max_norm / (total_norm + 1e-6)
+    clip_coef = ops.ones((), dtype=ms.float32) * clip_coef  # FIXME: MindSpore 2.3.1
 
     # FIXME: Bug on MindSpore 2.3.1
-    # clip_coef_clamped = ops.clamp(clip_coef, None, 1.0)
-    clip_coef_clamped = ops.select(clip_coef > 1., ops.ones_like(clip_coef), clip_coef)
+    clip_coef_clamped = ops.clamp(clip_coef, None, 1.0)
+    # clip_coef_clamped = ops.select(clip_coef > 1., ops.ones_like(clip_coef), clip_coef)
 
     clipped_part_grads = hyper_map_op(F.partial(_apply_global_norm, clip_coef_clamped), part_grads)
     return clipped_part_grads
