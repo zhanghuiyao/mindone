@@ -1512,7 +1512,7 @@ class Trainer:
 
         loss, _, overflow = train_model(*tuple_inputs)
 
-        breakpoint()
+        print(train_model.optimizer.gradients_square_sum)
 
         # For LOMO optimizers you need to explicitly use the learnign rate
         if self.args.optim in [OptimizerNames.LOMO, OptimizerNames.ADALOMO]:
