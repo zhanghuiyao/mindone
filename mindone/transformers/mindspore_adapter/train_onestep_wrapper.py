@@ -245,6 +245,7 @@ class TrainOneStepWrapper(nn.Cell):
                     and self.accum_steps == 1
             ):
                 grads, total_norm = self.optimizer.grad_reduce(grads, return_norm=True)
+                total_norm = self.scaler.unscale(total_norm)
             else:
                 grads = self.optimizer.grad_reduce(grads)
         else:
