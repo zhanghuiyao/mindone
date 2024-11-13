@@ -88,13 +88,13 @@ def _clip_grad_l2norm_for_zero(max_norm, all_reduce_op, part_grads):
 
     # ops.TensorDump()("total_norm", total_norm.astype(ms.float32))
 
-    total_norm = 1.0 # zhy_test
+    # clip_coef = max_norm / (total_norm + 1e-6)
+    # clip_coef_clamped = ops.clamp(clip_coef, None, 1.0)
+    #
+    # clipped_part_grads = hyper_map_op(F.partial(_apply_global_norm, clip_coef_clamped), part_grads)
+    # return clipped_part_grads
 
-    clip_coef = max_norm / (total_norm + 1e-6)
-    clip_coef_clamped = ops.clamp(clip_coef, None, 1.0)
-
-    clipped_part_grads = hyper_map_op(F.partial(_apply_global_norm, clip_coef_clamped), part_grads)
-    return clipped_part_grads
+    return part_grads  # zhy_test
 
 
 def clip_grad_value(grads, max_value):
