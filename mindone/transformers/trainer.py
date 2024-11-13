@@ -1512,6 +1512,8 @@ class Trainer:
 
         loss, _, overflow = train_model(*tuple_inputs)
 
+        breakpoint()
+
         # For LOMO optimizers you need to explicitly use the learnign rate
         if self.args.optim in [OptimizerNames.LOMO, OptimizerNames.ADALOMO]:
             raise NotImplementedError
