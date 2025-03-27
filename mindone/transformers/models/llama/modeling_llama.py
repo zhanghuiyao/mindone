@@ -287,6 +287,7 @@ class LlamaAttention(nn.Cell):
         output_attentions: bool = False,
         use_cache: bool = False,
         cache_position: Optional[ms.Tensor] = None,
+        enable_dynamic_shape: bool = False,
         **kwargs,
     ):
         bsz, q_len, _ = hidden_states.shape
@@ -318,9 +319,28 @@ class LlamaAttention(nn.Cell):
         cos, sin = self.rotary_emb(value_states, position_ids)
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
-        if past_key_value is not None and use_cache:
-            key_states, value_states = update(past_key_value, key_states, value_states, cache_position)
-            past_key_value = (key_states, value_states)
+        if past_key_value is not None:
+            if enable_dynamic_shape:
+                is_first = (q_len == (int(cache_position.max()) + 1))
+                
+                if is_first:
+                    past_len = 0
+                    key_states = key_states
+                    value_states = value_states
+                    # option
+                    past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
+                                      ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                else:
+                    past_len = int(cache_position.max()) + 1
+                    key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
+                    value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
+                    # option
+                    past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
+                                      ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+            else:
+                key_states, value_states = update(past_key_value, key_states, value_states, cache_position)
+                past_key_value = (key_states, value_states)
+
 
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
@@ -395,6 +415,7 @@ class LlamaFlashAttention2(LlamaAttention):
         output_attentions: bool = False,
         use_cache: bool = False,
         cache_position: Optional[ms.Tensor] = None,
+        enable_dynamic_shape: bool = False,
         **kwargs,
     ):
         # assert output_attentions == False
@@ -429,8 +450,26 @@ class LlamaFlashAttention2(LlamaAttention):
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
         if past_key_value is not None:
-            key_states, value_states = update(past_key_value, key_states, value_states, cache_position)
-            past_key_value = (key_states, value_states)
+            if enable_dynamic_shape:
+                is_first = (q_len == (int(cache_position.max()) + 1))
+                
+                if is_first:
+                    past_len = 0
+                    key_states = key_states
+                    value_states = value_states
+                    # option
+                    past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
+                                      ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                else:
+                    past_len = int(cache_position.max()) + 1
+                    key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
+                    value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
+                    # option
+                    past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
+                                      ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+            else:
+                key_states, value_states = update(past_key_value, key_states, value_states, cache_position)
+                past_key_value = (key_states, value_states)
 
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
@@ -499,6 +538,7 @@ class LlamaDecoderLayer(nn.Cell):
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
         cache_position: Optional[ms.Tensor] = None,
+        enable_dynamic_shape: bool = False,
         **kwargs,
     ) -> Tuple[ms.Tensor, Optional[Tuple[ms.Tensor, ms.Tensor]]]:
         """
@@ -533,6 +573,7 @@ class LlamaDecoderLayer(nn.Cell):
             output_attentions=output_attentions,
             use_cache=use_cache,
             cache_position=cache_position,
+            enable_dynamic_shape=enable_dynamic_shape
         )
         hidden_states = residual + hidden_states
 
@@ -748,12 +789,10 @@ class LlamaModel(LlamaPreTrainedModel):
 
         logger.info(f"{self.__class__.__name__}: enable recompute.")
 
-    def prepare_static_cache(self, input_embeds, max_cache_len):
+    def prepare_static_cache(self, input_embeds, max_cache_len, cache_dtype = None):
         bs = input_embeds.shape[0]
-        max_batch_size, cache_dtype = (
-            getattr(self.config, "num_beams", 1) * bs,
-            self.dtype,
-        )
+        max_batch_size = getattr(self.config, "num_beams", 1) * bs
+        cache_dtype = cache_dtype if cache_dtype is not None else self.dtype
         past_key_values = init_static_cache(
             config=self.config, max_batch_size=max_batch_size, max_cache_len=max_cache_len, dtype=cache_dtype
         )
@@ -772,6 +811,7 @@ class LlamaModel(LlamaPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = False,
         cache_position: Optional[ms.Tensor] = None,
+        enable_dynamic_shape: bool = False
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.output_attentions
         output_hidden_states = output_hidden_states if output_hidden_states is not None else self.output_hidden_states
@@ -816,6 +856,7 @@ class LlamaModel(LlamaPreTrainedModel):
                 output_attentions=output_attentions,
                 use_cache=use_cache,
                 cache_position=cache_position,
+                enable_dynamic_shape=enable_dynamic_shape
             )
 
             hidden_states = layer_outputs[0]
@@ -927,6 +968,49 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
     def get_decoder(self):
         return self.model
 
+    def enable_dynamic_shape(self, *args, **kwargs):
+
+        dynamic_input_ids: ms.Tensor = ms.Tensor(shape=[None, None], dtype=ms.int32)
+        dynamic_attention_mask: Optional[ms.Tensor] = ms.Tensor(shape=[None, None], dtype=ms.bool_)
+        dynamic_position_ids: Optional[ms.Tensor] = ms.Tensor(shape=[None, None], dtype=ms.int32)
+        dynamic_inputs_embeds: Optional[ms.Tensor] = ms.Tensor(shape=[None, None, None], dtype=ms.float32)
+
+        # for cache
+        use_cache: Optional[bool] = True
+        dynamic_past_key_values: Optional[list[ms.Tensor]] = None
+        dynamic_cache_position: Optional[ms.Tensor] = None
+        
+        dynamic_labels: Optional[ms.Tensor] = None  # for train
+        output_attentions: Optional[bool] = False
+        output_hidden_states: Optional[bool] = False
+        return_dict: Optional[bool] = False
+        enable_dynamic_shape: bool = False
+
+        use_cache = True
+        if use_cache:
+            enable_dynamic_shape = True
+            dynamic_inputs_embeds = None
+            dynamic_past_key_values: Optional[list[ms.Tensor]] = ms.mutable(tuple([(Tensor(shape=[None, None, None, None], dtype=ms.float16), 
+                                                                                    Tensor(shape=[None, None, None, None], dtype=ms.float16)) for _ in range(len(self.model.layers))]))
+            dynamic_cache_position: Optional[ms.Tensor] = ms.Tensor(shape=[None,], dtype=ms.int32)
+
+        self.set_inputs(
+            dynamic_input_ids,
+            dynamic_attention_mask,
+            dynamic_position_ids,
+            dynamic_past_key_values,
+            dynamic_inputs_embeds, 
+            dynamic_labels,
+            use_cache,
+            output_attentions,
+            output_hidden_states,
+            return_dict,
+            dynamic_cache_position,
+            enable_dynamic_shape
+        )
+        
+        logger.info("Set dynamic input for qwen.")
+
     def gradient_checkpointing_enable(self, gradient_checkpointing_kwargs=None):
         self.model.gradient_checkpointing_enable(gradient_checkpointing_kwargs)
 
@@ -944,6 +1028,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = False,
         cache_position: Optional[ms.Tensor] = None,
+        enable_dynamic_shape: bool = False
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -987,6 +1072,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             cache_position=cache_position,
+            enable_dynamic_shape=enable_dynamic_shape,
         )
         hidden_states = outputs[0]
 

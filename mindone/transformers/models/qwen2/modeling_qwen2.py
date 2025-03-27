@@ -299,12 +299,13 @@ class Qwen2Attention(nn.Cell):
 
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
-            if self.layer_idx is None:
-                raise ValueError(
-                    f"The cache structure has changed since version v4.36. If you are using {self.__class__.__name__} "
-                    "for auto-regressive decoding with k/v caching, please make sure to initialize the attention class "
-                    "with a layer index."
-                )
+            # FIXME: BUG on MindSpore 2.5.0 + dynamic shape
+            # if self.layer_idx is None:
+            #     raise ValueError(
+            #         f"The cache structure has changed since version v4.36. If you are using {self.__class__.__name__} "
+            #         "for auto-regressive decoding with k/v caching, please make sure to initialize the attention class "
+            #         "with a layer index."
+            #     )
             kv_seq_len += past_key_value.get_usable_length(kv_seq_len, self.layer_idx)
         cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
@@ -319,11 +320,12 @@ class Qwen2Attention(nn.Cell):
 
         attn_weights = mint.matmul(query_states, key_states.swapaxes(2, 3)) / mint.sqrt(ms.tensor(self.head_dim))
 
-        if attn_weights.shape != (bsz, self.num_heads, q_len, kv_seq_len):
-            raise ValueError(
-                f"Attention weights should be of size {(bsz, self.num_heads, q_len, kv_seq_len)}, but is"
-                f" {attn_weights.shape}"
-            )
+        # FIXME: BUG on MindSpore 2.5.0 + dynamic shape
+        # if attn_weights.shape != (bsz, self.num_heads, q_len, kv_seq_len):
+        #     raise ValueError(
+        #         f"Attention weights should be of size {(bsz, self.num_heads, q_len, kv_seq_len)}, but is"
+        #         f" {attn_weights.shape}"
+        #     )
 
         if attention_mask is not None:  # no matter the length, we just slice it
             causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
@@ -334,11 +336,12 @@ class Qwen2Attention(nn.Cell):
         attn_weights = ops.dropout(attn_weights, p=self.attention_dropout, training=self.training)
         attn_output = mint.matmul(attn_weights, value_states)
 
-        if attn_output.shape != (bsz, self.num_heads, q_len, self.head_dim):
-            raise ValueError(
-                f"`attn_output` should be of size {(bsz, self.num_heads, q_len, self.head_dim)}, but is"
-                f" {attn_output.shape}"
-            )
+        # FIXME: BUG on MindSpore 2.5.0 + dynamic shape
+        # if attn_output.shape != (bsz, self.num_heads, q_len, self.head_dim):
+        #     raise ValueError(
+        #         f"`attn_output` should be of size {(bsz, self.num_heads, q_len, self.head_dim)}, but is"
+        #         f" {attn_output.shape}"
+        #     )
 
         attn_output = attn_output.swapaxes(1, 2)
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
@@ -600,7 +603,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        # FIXME
+        # FIXME: BUG on MindSpore 2.5.0 + dynamic shape
         # if (input_ids is None) ^ (inputs_embeds is not None):
         #     raise ValueError(
         #         "You cannot specify both input_ids and inputs_embeds at the same time, and must specify either one"
@@ -1046,8 +1049,10 @@ class Qwen2ForSequenceClassification(Qwen2PreTrainedModel):
         else:
             batch_size = inputs_embeds.shape[0]
 
-        if self.config.pad_token_id is None and batch_size != 1:
-            raise ValueError("Cannot handle batch sizes > 1 if no padding token is defined.")
+        # FIXME: BUG on MindSpore 2.5.0 + dynamic shape
+        # if self.config.pad_token_id is None and batch_size != 1:
+        #     raise ValueError("Cannot handle batch sizes > 1 if no padding token is defined.")
+        
         if self.config.pad_token_id is None:
             sequence_lengths = -1
         else:

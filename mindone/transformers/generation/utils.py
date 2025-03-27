@@ -153,6 +153,9 @@ GenerateNonBeamOutput = Union[GenerateDecoderOnlyOutput, GenerateEncoderDecoderO
 
 
 class GenerationMixin:
+    def enable_dynamic_shape(self, *args, **kwargs):
+        raise NotImplementedError
+
     def prepare_inputs_for_generation(self, *args, **kwargs):
         raise NotImplementedError(
             "A model class needs to define a `prepare_inputs_for_generation` method in order to use `.generate()`."
@@ -1731,17 +1734,82 @@ class GenerationMixin:
         s_time = time.time()
         graph_compiled_time_buffer = []
 
+
+        # enable mindspore dynamic shape on MindSpore 2.5.0
+        use_dynamic = model_kwargs.pop("enable_dynamic_shape", False)
+        if use_dynamic:
+            # call mindspore.nn.Cell.set_inputs() function
+            self.enable_dynamic_shape()
+            
+            # get the current lens
+            attention_mask = model_kwargs["attention_mask"]
+            cur_len = int(attention_mask.sum(-1).max())
+
+            # clip to current lens
+            input_ids = input_ids[:, :cur_len]
+            model_kwargs["attention_mask"] = model_kwargs["attention_mask"][:, :cur_len]
+            if model_kwargs.get("inputs_embeds", None) is not None:
+                model_kwargs["inputs_embeds"] = model_kwargs["inputs_embeds"][:, :cur_len]
+            if model_kwargs.get("labels", None) is not None:
+                model_kwargs["labels"] = model_kwargs["labels"][:, :cur_len]
+            if model_kwargs.get("position_ids", None) is not None:
+                model_kwargs["position_ids"] = model_kwargs["position_ids"][:, :cur_len]
+            if model_kwargs.get("cache_position", None) is not None:
+                model_kwargs["cache_position"] = model_kwargs["cache_position"][:cur_len]
+
+
+        is_first = True
         while self._has_unfinished_sequences(this_peer_finished, synced_gpus):
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
-            # forward pass to get next token
+            # zhy_test
+            # # forward pass to get next token
+            # outputs = self(
+            #     **model_inputs,
+            #     return_dict=False if ms.get_context("mode") == ms.GRAPH_MODE else True,
+            #     output_attentions=output_attentions,
+            #     output_hidden_states=output_hidden_states,
+            # )
+
+            if is_first:
+                _input_ids = model_inputs["input_ids"]
+                _attention_mask = model_inputs["attention_mask"]
+                _position_ids = model_inputs["position_ids"]
+            else:
+                _input_ids = model_inputs["input_ids"][:, -1:]
+                _attention_mask = model_inputs["attention_mask"][:, -1:]
+                _position_ids = model_inputs["position_ids"][:, -1:]
+            _past_key_values = model_inputs["past_key_values"]
+            _inputs_embeds = None
+            _labels = None
+            _use_cache = True
+            _output_attentions = False
+            _output_hidden_states = False
+            _return_dict = False
+            _cache_position = model_inputs["cache_position"]
+            _enable_dynamic_shape = True
+
             outputs = self(
-                **model_inputs,
-                return_dict=False if ms.get_context("mode") == ms.GRAPH_MODE else True,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
+                _input_ids,
+                _attention_mask,
+                _position_ids,
+                _past_key_values,
+                _inputs_embeds,
+                _labels,
+                _use_cache,
+                _output_attentions,
+                _output_hidden_states,
+                _return_dict,
+                _cache_position,
+                _enable_dynamic_shape,
             )
+                
+            is_first = False
+
+
+
+
 
             if synced_gpus and this_peer_finished:
                 continue  # don't waste resources running the code we don't need

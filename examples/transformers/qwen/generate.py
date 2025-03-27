@@ -39,7 +39,7 @@ def run_qwen2_generate(args):
         input_kwargs = {}
         input_kwargs["input_ids"] = input_ids
 
-        output_ids = model.generate(**input_kwargs, use_cache=args.use_cache, max_new_tokens=512, do_sample=False)
+        output_ids = model.generate(**input_kwargs, use_cache=args.use_cache, max_new_tokens=10, do_sample=False)
         output_ids = output_ids.asnumpy()
 
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
