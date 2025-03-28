@@ -1814,13 +1814,18 @@ class GenerationMixin:
                 # )
 
                 # zhy_test
-                _input_ids = model_inputs["input_ids"]
-                _attention_mask = model_inputs["attention_mask"]
-                _position_ids = model_inputs["position_ids"]
+                _use_cache = model_inputs["use_cache"]
+                if is_first or not _use_cache:
+                    _input_ids = model_inputs["input_ids"]
+                    _attention_mask = model_inputs["attention_mask"]
+                    _position_ids = model_inputs["position_ids"]
+                else:
+                    _input_ids = model_inputs["input_ids"][:, -1:]
+                    _attention_mask = model_inputs["attention_mask"][:, -1:]
+                    _position_ids = model_inputs["position_ids"][:, -1:]
                 _past_key_values = model_inputs["past_key_values"]
                 _inputs_embeds = None
                 _labels = None
-                _use_cache = model_inputs["use_cache"]
                 _output_attentions = False
                 _output_hidden_states = False
                 _return_dict = False
