@@ -164,9 +164,15 @@ class Qwen2RotaryEmbedding(nn.Cell):
         # if seq_len > self.max_seq_len_cached:
         #     self._set_cos_sin_cache(seq_len=seq_len, device=None, dtype=x.dtype)
 
+        # return (
+        #     self.cos_cached[:seq_len].to(dtype=x.dtype),
+        #     self.sin_cached[:seq_len].to(dtype=x.dtype),
+        # )
+
+        # zhy_test: speedup by jiahua
         return (
-            self.cos_cached[:seq_len].to(dtype=x.dtype),
-            self.sin_cached[:seq_len].to(dtype=x.dtype),
+            ops.split(self.cos_cached, [seq_len, self.cos_cached.shape[0]-seq_len], axis=0)[0].astype(x.dtype),
+            ops.split(self.sin_cached, [seq_len, self.sin_cached.shape[0]-seq_len], axis=0)[0].astype(x.dtype)
         )
 
 
@@ -231,7 +237,12 @@ def repeat_kv(hidden_states: ms.Tensor, n_rep: int) -> ms.Tensor:
     batch, num_key_value_heads, slen, head_dim = hidden_states.shape
     if n_rep == 1:
         return hidden_states
-    hidden_states = hidden_states[:, :, None, :, :].broadcast_to((batch, num_key_value_heads, n_rep, slen, head_dim))
+    
+    # zhy_test: speedup by jiahua
+    # hidden_states = hidden_states[:, :, None, :, :].broadcast_to((batch, num_key_value_heads, n_rep, slen, head_dim))
+    hidden_states = ops.expand_dims(hidden_states, 2)
+    hidden_states = hidden_states.broadcast_to((batch, num_key_value_heads, n_rep, slen, head_dim))
+
     return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
 
 
@@ -262,11 +273,11 @@ class Qwen2Attention(nn.Cell):
         self.is_causal = True
         self.attention_dropout = config.attention_dropout
 
-        if (self.head_dim * self.num_heads) != self.hidden_size:
-            raise ValueError(
-                f"hidden_size must be divisible by num_heads (got `hidden_size`: {self.hidden_size}"
-                f" and `num_heads`: {self.num_heads})."
-            )
+        # if (self.head_dim * self.num_heads) != self.hidden_size:
+        #     raise ValueError(
+        #         f"hidden_size must be divisible by num_heads (got `hidden_size`: {self.hidden_size}"
+        #         f" and `num_heads`: {self.num_heads})."
+        #     )
         self.q_proj = mint.nn.Linear(self.hidden_size, self.num_heads * self.head_dim, bias=True)
         self.k_proj = mint.nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=True)
         self.v_proj = mint.nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=True)
@@ -285,7 +296,7 @@ class Qwen2Attention(nn.Cell):
         hidden_states: ms.Tensor,
         attention_mask: Optional[ms.Tensor] = None,
         position_ids: Optional[ms.Tensor] = None,
-        past_key_value: Optional[Cache] = None,
+        past_key_value: Optional[Tuple[ms.Tensor, ms.Tensor]] = None,
         output_attentions: bool = False,
         use_cache: bool = False,
         cache_position: Optional[ms.Tensor] = None,
@@ -315,12 +326,12 @@ class Qwen2Attention(nn.Cell):
         
 
         # chaoran test
-        # query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
-        # using ops.rotary_embedding
-        cos = cos.unsqueeze(0).unsqueeze(0)
-        sin = sin.unsqueeze(0).unsqueeze(0)
-        query_states = ops.rotary_position_embedding(query_states, cos, sin)
-        key_states = ops.rotary_position_embedding(key_states, cos, sin)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+        # # using ops.rotary_embedding
+        # cos = cos.unsqueeze(0).unsqueeze(0)
+        # sin = sin.unsqueeze(0).unsqueeze(0)
+        # query_states = ops.rotary_position_embedding(query_states, cos, sin)
+        # key_states = ops.rotary_position_embedding(key_states, cos, sin)
 
         if past_key_value is not None:
             if enable_dynamic_shape:
@@ -332,14 +343,14 @@ class Qwen2Attention(nn.Cell):
                     value_states = value_states
                     # option
                     past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
-                                    ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                                      ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
                 else:
                     past_len = int(cache_position.max()) + 1
                     key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
                     value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
                     # option
                     past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
-                                    ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+                                      ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
             else:
                 key_states, value_states = update(past_key_value, key_states, value_states, cache_position)
                 past_key_value = (key_states, value_states)
@@ -438,6 +449,19 @@ class Qwen2FlashAttention2(Qwen2Attention):
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).swapdims(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).swapdims(1, 2)
 
+        kv_seq_len = key_states.shape[-2]
+        # Because the input can be padded, the absolute sequence length depends on the max position id.
+        # rotary_seq_len = max(kv_seq_len, position_ids[:, -1].max().item()) + 1
+        # cos, sin = self.rotary_emb(value_states, seq_len=rotary_seq_len)
+        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+
+        # query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+        # using ops.rotary_embedding
+        cos = cos.unsqueeze(0).unsqueeze(0)
+        sin = sin.unsqueeze(0).unsqueeze(0)
+        query_states = ops.rotary_position_embedding(query_states, cos, sin)
+        key_states = ops.rotary_position_embedding(key_states, cos, sin)
+
         if past_key_value is not None:
             if enable_dynamic_shape:
                 is_first = (q_len == (int(cache_position.max()) + 1))
@@ -448,24 +472,17 @@ class Qwen2FlashAttention2(Qwen2Attention):
                     value_states = value_states
                     # option
                     past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
-                                    ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                                      ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
                 else:
                     past_len = int(cache_position.max()) + 1
                     key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
                     value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
                     # option
                     past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
-                                    ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+                                      ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
             else:
                 key_states, value_states = update(past_key_value, key_states, value_states, cache_position)
                 past_key_value = (key_states, value_states)
-
-        kv_seq_len = key_states.shape[-2]
-        # Because the input can be padded, the absolute sequence length depends on the max position id.
-        rotary_seq_len = max(kv_seq_len, position_ids[:, -1].max().item()) + 1
-        cos, sin = self.rotary_emb(value_states, seq_len=rotary_seq_len)
-
-        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
 
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
@@ -536,7 +553,6 @@ class Qwen2DecoderLayer(nn.Cell):
                 Arbitrary kwargs to be ignored, used for FSDP and other methods that injects code
                 into the model
         """
-
         residual = hidden_states
 
         hidden_states = self.input_layernorm(hidden_states)
@@ -803,8 +819,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
             if use_cache:
                 next_caches += (layer_outputs[2 if output_attentions else 1],)
 
-            if output_attentions:
-                all_self_attns += (layer_outputs[1],)
+            # if output_attentions:
+            #     all_self_attns += (layer_outputs[1],)
 
         hidden_states = self.norm(hidden_states)
 
@@ -859,6 +875,27 @@ class Qwen2Model(Qwen2PreTrainedModel):
             cache_position=cache_position,
             batch_size=input_tensor.shape[0]
         )
+        
+        # if attention_mask is not None and len(attention_mask.shape) == 4:
+        #     # in this case we assume that the mask comes already in inverted form and requires no inversion or slicing
+        #     # if attention_mask.max() != 0:
+        #     #     raise ValueError("Custom 4D attention mask should be passed in inverted form with max==0`")
+        #     causal_mask = attention_mask
+        # else:
+        #     causal_mask = ops.broadcast_to(_MIN_FP16, (sequence_length, target_length))
+        #     if sequence_length != 1:
+        #         causal_mask = ops.triu(causal_mask, diagonal=1)
+        #     _mask_position = ops.arange(target_length) > cache_position.reshape(-1, 1)
+        #     causal_mask = causal_mask * _mask_position
+        #     causal_mask = causal_mask[None, None, :, :].broadcast_to((input_tensor.shape[0], 1, -1, -1))
+        #     if attention_mask is not None:
+        #         causal_mask = causal_mask.clone()  # copy to contiguous memory for -in-place edit
+        #         mask_length = attention_mask.shape[-1]
+        #         padding_mask = causal_mask[:, :, :, :mask_length] + attention_mask[:, None, None, :]
+        #         padding_mask = padding_mask == 0
+        #         causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(
+        #             padding_mask, _MIN_FP16
+        #         )
 
         return causal_mask
 
@@ -914,7 +951,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
         return self.model
 
     def enable_dynamic_shape(self, *args, **kwargs):
- 
+
         dynamic_input_ids: ms.Tensor = ms.Tensor(shape=[None, None], dtype=ms.int32)
         dynamic_attention_mask: Optional[ms.Tensor] = ms.Tensor(shape=[None, None], dtype=ms.bool_)
         dynamic_position_ids: Optional[ms.Tensor] = ms.Tensor(shape=[None, None], dtype=ms.int32)
@@ -1015,9 +1052,8 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             cache_position=cache_position,
-            enable_dynamic_shape=enable_dynamic_shape
+            enable_dynamic_shape=enable_dynamic_shape,
         )
-
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)
         logits = logits.float()
@@ -1053,7 +1089,6 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
         attention_mask=None,
         inputs_embeds=None,
         cache_position=None,
-        position_ids=None,
         use_cache=True,
         **kwargs,
     ):
@@ -1069,18 +1104,18 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
             # some of the inputs are exclusively passed as part of the cache (e.g. when passing input_embeds as input)
 
             if attention_mask is not None and int(attention_mask.sum(-1).max()) > input_ids.shape[1]:
-                input_ids = input_ids[:, -(int(attention_mask.sum(-1).max()) - int(past_length)):]
+                input_ids = input_ids[:, -(int(attention_mask.sum(-1).max()) - int(past_length)) :]
             # 2 - If the past_length is smaller than input_ids', then input_ids holds all input tokens. We can discard
             # input_ids based on the past_length.
             elif past_length < input_ids.shape[1]:
-                input_ids = input_ids[:, int(past_length):]
+                input_ids = input_ids[:, int(past_length) :]
             # 3 - Otherwise (past_length >= input_ids.shape[1]), let's assume input_ids only has unprocessed tokens.
 
             # If we are about to go beyond the maximum cache length, we need to crop the input attention mask.
             if (
-                    max_cache_length is not None
-                    and attention_mask is not None
-                    and cache_length + input_ids.shape[1] > max_cache_length
+                max_cache_length is not None
+                and attention_mask is not None
+                and cache_length + input_ids.shape[1] > max_cache_length
             ):
                 attention_mask = attention_mask[:, -max_cache_length:]
 
@@ -1091,7 +1126,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
             position_ids = position_ids.masked_fill(attention_mask == 0, 1)
             if past_key_values and past_length > 0:
                 cur_len = attention_mask.sum(-1).max()
-                position_ids = position_ids[:, cur_len - input_ids.shape[1]: cur_len]
+                position_ids = position_ids[:, cur_len - input_ids.shape[1] : cur_len]
 
         # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
         if inputs_embeds is not None and past_length == 0:
@@ -1104,7 +1139,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
             # Padding to max_len when no cache
             if past_key_values is None:
                 pad_len = max(0, attention_mask.shape[1] - input_ids.shape[1])
-                input_ids = F.pad(input_ids, (0, pad_len), value=0)
+                input_ids = ops.pad(input_ids, (0, pad_len), value=0)
 
             model_inputs = {"input_ids": input_ids}
 
@@ -1116,7 +1151,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
             if input_length < cache_position.shape[0]:
                 assert cache_position.shape[0] == attention_mask.shape[-1]
                 cur_len = int(attention_mask.sum(-1).max())
-                cache_position = cache_position[cur_len - input_length: cur_len]
+                cache_position = cache_position[cur_len - input_length : cur_len]
             else:
                 cache_position = cache_position[-input_length:]
 

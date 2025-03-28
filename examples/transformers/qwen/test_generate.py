@@ -21,8 +21,13 @@ def run_qwen2_generate(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     model = Qwen2ForCausalLM.from_pretrained(args.model_path, mindspore_dtype=ms.bfloat16, use_flash_attention_2=args.use_fa)
 
-    jit_config = JitConfig(jit_level="O0", infer_boost='on')
-    model.set_jit_config(jit_config)
+    if args.ms_mode == 0:
+        if args.infer_boost:
+            # Bug when enable dynamic shape on MindSpore 2.5.0
+            jit_config = JitConfig(jit_level="O0", infer_boost='on')
+        else:
+            jit_config = JitConfig(jit_level="O0")
+        model.set_jit_config(jit_config)
 
     print("=====> Building model done.")
 
@@ -76,6 +81,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_fa", type=ast.literal_eval, default=True)
     parser.add_argument("--use_cache", type=ast.literal_eval, default=True)
     parser.add_argument("--enable_dynamic_shape", type=ast.literal_eval, default=True)
+    parser.add_argument("--infer_boost", type=ast.literal_eval, default=False)
     parser.add_argument("--prompt", type=str, default=None)
     args, _ = parser.parse_known_args()
 
