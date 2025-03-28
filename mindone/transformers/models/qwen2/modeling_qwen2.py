@@ -164,15 +164,15 @@ class Qwen2RotaryEmbedding(nn.Cell):
         # if seq_len > self.max_seq_len_cached:
         #     self._set_cos_sin_cache(seq_len=seq_len, device=None, dtype=x.dtype)
 
+        # zhy_test: speedup by jiahua, bug when use dynamic_shape
         # return (
-        #     self.cos_cached[:seq_len].to(dtype=x.dtype),
-        #     self.sin_cached[:seq_len].to(dtype=x.dtype),
+        #     ops.split(self.cos_cached, [seq_len, self.cos_cached.shape[0]-seq_len], axis=0)[0].to(x.dtype),
+        #     ops.split(self.sin_cached, [seq_len, self.sin_cached.shape[0]-seq_len], axis=0)[0].to(x.dtype)
         # )
 
-        # zhy_test: speedup by jiahua
         return (
-            ops.split(self.cos_cached, [seq_len, self.cos_cached.shape[0]-seq_len], axis=0)[0].astype(x.dtype),
-            ops.split(self.sin_cached, [seq_len, self.sin_cached.shape[0]-seq_len], axis=0)[0].astype(x.dtype)
+            self.cos_cached[:seq_len].to(dtype=x.dtype),
+            self.sin_cached[:seq_len].to(dtype=x.dtype),
         )
 
 
@@ -342,19 +342,29 @@ class Qwen2Attention(nn.Cell):
                     key_states = key_states
                     value_states = value_states
                     
-                    # static
+                    # static 1
                     # past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
                     #                   ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                    # static 2
+                    # past_key_value = (ops.concat((key_states, mint.split(past_key_value[0], (q_len, past_key_value[0].shape[2]-q_len), dim=2)[1]), axis=2), 
+                    #                   ops.concat((value_states, mint.split(past_key_value[1], (q_len, past_key_value[1].shape[2]-q_len), dim=2)[1]), axis=2))
                     # dynamic
                     past_key_value = (key_states, value_states)
                 else:
                     past_len = int(cache_position.max()) + 1
                     
-                    # static
+                    # static 1
                     # key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
                     # value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
                     # past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
                     #                   ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+                    # static 2
+                    # key_s = mint.split(past_key_value[0], (past_len, 1, past_key_value[0].shape[2]-(past_len+1)), dim=2)
+                    # value_s = mint.split(past_key_value[1], (past_len, 1, past_key_value[1].shape[2]-(past_len+1)), dim=2)
+                    # key_states = ops.concat((key_s[0], key_states), axis=2)
+                    # value_states = ops.concat((value_s[0], value_states), axis=2)
+                    # past_key_value = (ops.concat((key_states, key_s[-1]), axis=2), 
+                    #                   ops.concat((value_states, value_s[-1]), axis=2))
                     # dynamic
                     key_states = ops.concat((past_key_value[0], key_states), axis=2)
                     value_states = ops.concat((past_key_value[1], value_states), axis=2)
@@ -479,24 +489,33 @@ class Qwen2FlashAttention2(Qwen2Attention):
                     key_states = key_states
                     value_states = value_states
                     
-                    # static
+                    # static 1
                     # past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
                     #                   ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                    # static 2
+                    # past_key_value = (ops.concat((key_states, mint.split(past_key_value[0], (q_len, past_key_value[0].shape[2]-q_len), dim=2)[1]), axis=2), 
+                    #                   ops.concat((value_states, mint.split(past_key_value[1], (q_len, past_key_value[1].shape[2]-q_len), dim=2)[1]), axis=2))
                     # dynamic
                     past_key_value = (key_states, value_states)
                 else:
                     past_len = int(cache_position.max()) + 1
                     
-                    # static
+                    # static 1
                     # key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
                     # value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
                     # past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
                     #                   ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+                    # static 2
+                    # key_s = mint.split(past_key_value[0], (past_len, 1, past_key_value[0].shape[2]-(past_len+1)), dim=2)
+                    # value_s = mint.split(past_key_value[1], (past_len, 1, past_key_value[1].shape[2]-(past_len+1)), dim=2)
+                    # key_states = ops.concat((key_s[0], key_states), axis=2)
+                    # value_states = ops.concat((value_s[0], value_states), axis=2)
+                    # past_key_value = (ops.concat((key_states, key_s[-1]), axis=2), 
+                    #                   ops.concat((value_states, value_s[-1]), axis=2))
                     # dynamic
                     key_states = ops.concat((past_key_value[0], key_states), axis=2)
                     value_states = ops.concat((past_key_value[1], value_states), axis=2)
                     past_key_value = (key_states, value_states)
-                    
             else:
                 key_states, value_states = update(past_key_value, key_states, value_states, cache_position)
                 past_key_value = (key_states, value_states)
