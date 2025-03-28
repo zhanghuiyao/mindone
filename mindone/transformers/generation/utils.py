@@ -1806,47 +1806,11 @@ class GenerationMixin:
                     _enable_dynamic_shape,
                 )
             else:
-                # outputs = self(
-                #     **model_inputs,
-                #     return_dict=False if ms.get_context("mode") == ms.GRAPH_MODE else True,
-                #     output_attentions=output_attentions,
-                #     output_hidden_states=output_hidden_states,
-                # )
-
-                # zhy_test
-                _use_cache = model_inputs["use_cache"]
-                if is_first or not _use_cache:
-                    _input_ids = model_inputs["input_ids"]
-                    _attention_mask = model_inputs["attention_mask"]
-                    _position_ids = model_inputs["position_ids"]
-                else:
-                    _input_ids = model_inputs["input_ids"][:, -1:]
-                    _attention_mask = model_inputs["attention_mask"][:, -1:]
-                    _position_ids = model_inputs["position_ids"][:, -1:]
-                _past_key_values = model_inputs["past_key_values"]
-                _inputs_embeds = None
-                _labels = None
-                _output_attentions = False
-                _output_hidden_states = False
-                _return_dict = False
-                _cache_position = model_inputs["cache_position"]
-                _enable_dynamic_shape = False
-
-                assert _use_cache == True
-
                 outputs = self(
-                    _input_ids,
-                    _attention_mask,
-                    _position_ids,
-                    _past_key_values,
-                    _inputs_embeds,
-                    _labels,
-                    _use_cache,
-                    _output_attentions,
-                    _output_hidden_states,
-                    _return_dict,
-                    _cache_position,
-                    _enable_dynamic_shape,
+                    **model_inputs,
+                    return_dict=False if ms.get_context("mode") == ms.GRAPH_MODE else True,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
                 )
 
             is_first = False

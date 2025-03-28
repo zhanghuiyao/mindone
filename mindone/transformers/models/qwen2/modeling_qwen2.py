@@ -341,16 +341,24 @@ class Qwen2Attention(nn.Cell):
                     past_len = 0
                     key_states = key_states
                     value_states = value_states
-                    # option
-                    past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
-                                      ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                    
+                    # static
+                    # past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
+                    #                   ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                    # dynamic
+                    past_key_value = (key_states, value_states)
                 else:
                     past_len = int(cache_position.max()) + 1
-                    key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
-                    value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
-                    # option
-                    past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
-                                      ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+                    
+                    # static
+                    # key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
+                    # value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
+                    # past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
+                    #                   ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+                    # dynamic
+                    key_states = ops.concat((past_key_value[0], key_states), axis=2)
+                    value_states = ops.concat((past_key_value[1], value_states), axis=2)
+                    past_key_value = (key_states, value_states)
             else:
                 key_states, value_states = update(past_key_value, key_states, value_states, cache_position)
                 past_key_value = (key_states, value_states)
@@ -470,16 +478,25 @@ class Qwen2FlashAttention2(Qwen2Attention):
                     past_len = 0
                     key_states = key_states
                     value_states = value_states
-                    # option
-                    past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
-                                      ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                    
+                    # static
+                    # past_key_value = (ops.concat((key_states, past_key_value[0][:, :, q_len:]), axis=2), 
+                    #                   ops.concat((value_states, past_key_value[1][:, :, q_len:]), axis=2))
+                    # dynamic
+                    past_key_value = (key_states, value_states)
                 else:
                     past_len = int(cache_position.max()) + 1
-                    key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
-                    value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
-                    # option
-                    past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
-                                      ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+                    
+                    # static
+                    # key_states = ops.concat((past_key_value[0][:, :, :past_len], key_states), axis=2)
+                    # value_states = ops.concat((past_key_value[1][:, :, :past_len], value_states), axis=2)
+                    # past_key_value = (ops.concat((key_states, past_key_value[0][:, :, past_len+1:]), axis=2), 
+                    #                   ops.concat((value_states, past_key_value[1][:, :, past_len+1:]), axis=2))
+                    # dynamic
+                    key_states = ops.concat((past_key_value[0], key_states), axis=2)
+                    value_states = ops.concat((past_key_value[1], value_states), axis=2)
+                    past_key_value = (key_states, value_states)
+                    
             else:
                 key_states, value_states = update(past_key_value, key_states, value_states, cache_position)
                 past_key_value = (key_states, value_states)
