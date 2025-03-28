@@ -1009,7 +1009,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
             enable_dynamic_shape
         )
         
-        logger.info("Set dynamic input for qwen.")
+        logger.info("Set dynamic input.")
 
     def gradient_checkpointing_enable(self, gradient_checkpointing_kwargs=None):
         self.model.gradient_checkpointing_enable(gradient_checkpointing_kwargs)
