@@ -13,6 +13,9 @@ import mindspore as ms
 from mindspore import nn, ops
 
 
+global_max_cache_len = -1
+
+
 def init_static_cache(config: PretrainedConfig, max_batch_size: int, max_cache_len: int, dtype=None):
     max_cache_len = config.max_position_embeddings if max_cache_len is None else max_cache_len
     # Some model define a custom `head_dim` != config.hidden_size // config.num_attention_heads
@@ -32,6 +35,9 @@ def init_static_cache(config: PretrainedConfig, max_batch_size: int, max_cache_l
         new_layer_value_cache = ms.Tensor(np.zeros(cache_shape), dtype=dtype)
         key_value_cache += [(new_layer_key_cache, new_layer_value_cache)]
 
+    global global_max_cache_len
+    global_max_cache_len = max_cache_len
+    
     return key_value_cache
 
 
@@ -109,7 +115,8 @@ def get_seq_length(past_key_values, layer_idx: Optional[int] = 0) -> int:
 
 def get_max_length(past_key_values) -> Optional[int]:
     """Returns the maximum sequence length of the cached states."""
-    return past_key_values[0][0].shape[2]
+    # return past_key_values[0][0].shape[2]
+    return global_max_cache_len
 
 
 def reset(past_key_values):
