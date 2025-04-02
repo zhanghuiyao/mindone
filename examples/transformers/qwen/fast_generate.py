@@ -21,6 +21,20 @@ def run_qwen2_generate(args):
         args.model_path,
     )
 
+    # zhy_test
+    # mindspore_dtype=mindspore.bfloat16,  # convert rms_weight to bf16, but need fp32
+    # is_dynamic=True,
+    # use_flash_attention=True,
+    # batch_size=1,
+    # max_seq_length=32768,
+    # max_position_embedding=32768,
+    # block_size=32,
+    # num_blocks=1024,
+    # compute_dtype=mindspore.bfloat16,
+    # layernorm_compute_type=mindspore.float32,
+    # param_init_type=mindspore.bfloat16,
+    # rotary_dtype=mindspore.bfloat16,
+
     print("=====> Building model done.")
 
     is_first = True
@@ -58,7 +72,7 @@ def run_qwen2_generate(args):
             **model_inputs,
             use_cache=True,
             # max_new_tokens=10,
-            max_length=100,
+            max_length=1000,
             do_sample=False,
         )
         if isinstance(output_ids, mindspore.Tensor):
@@ -88,6 +102,9 @@ if __name__ == "__main__":
         max_device_memory="59GB",
         jit_config={"jit_level": "O0", "infer_boost": "on"}
     )
+    # mindspore.set_context(
+    #     pynative_synchronize=True
+    # )
 
     # set env
     os.environ["SHLVL"] = "2"

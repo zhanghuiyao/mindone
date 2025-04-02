@@ -196,6 +196,7 @@ class FastQwen2Attention(nn.Cell):
                 f" and `num_heads`: {self.num_heads})."
             )
 
+        self.is_first_iteration = True
         self.compute_dtype = compute_dtype
         self.block_size = block_size
         self.num_blocks = num_blocks
@@ -292,7 +293,7 @@ class FastQwen2DecoderLayer(nn.Cell):
             )
         
         self.compute_dtype = compute_dtype
-        # self.is_first_iteration = True
+        self.is_first_iteration = True
         self.residual_dtype = residual_dtype
         self.residual_cast_flag = residual_dtype != compute_dtype
         if self.residual_cast_flag:
@@ -820,7 +821,7 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
             position_ids,
             q_seq_lens,
         )
-        
+
         pre_gather = (not self.use_cache or self.is_first_iteration) and batch_valid_length is not None
         output = self.pre_gather_func(pre_gather, output, batch_valid_length, gather_index)
         logits = self.lm_head(output)
@@ -850,6 +851,15 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
             else:
                 output = self.gather(output, self.sub_batch_valid_len(batch_valid_length, 1), 1)
         return output
+
+    def add_flags_custom(self, is_first_iteration):
+        """Add customized attributes for specific cells in the model."""
+        self.add_flags(is_first_iteration=is_first_iteration)
+        self.model.add_flags(is_first_iteration=is_first_iteration)
+        for layer in self.model.layers:
+            layer.add_flags(is_first_iteration=is_first_iteration)
+            layer.self_attn.infer_attention.add_flags(is_first_iteration=is_first_iteration)
+            layer.self_attn.infer_attention.paged_attention_mgr.add_flags(is_first_iteration=is_first_iteration)
 
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
         """
@@ -1008,7 +1018,8 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
                 model_inputs["slot_mapping"] = Tensor.from_numpy(slot_mapping)
 
             if prefill:
-                self.add_flags_recursive(is_first_iteration=True)
+                self.phase = "prefill"
+                self.add_flags_custom(is_first_iteration=True)
             else:
                 model_inputs = self.slice_incremental_inputs(model_inputs, current_index)
 
@@ -1020,7 +1031,8 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
             print(f"model infer time: {(time.time()-s_time)*1000:.2f} ms")
 
             if prefill:
-                self.add_flags_recursive(is_first_iteration=False)
+                self.phase = "increment"
+                self.add_flags_custom(is_first_iteration=False)
 
             logits = outputs[0] if isinstance(outputs, tuple) else outputs
             logits = logits.reshape(-1, logits.shape[-1])  # (bs*?, dim)
