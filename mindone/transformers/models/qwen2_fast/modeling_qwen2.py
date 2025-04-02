@@ -1010,6 +1010,9 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
             if slot_mapping is not None and "slot_mapping" not in model_inputs:
                 model_inputs["slot_mapping"] = Tensor.from_numpy(slot_mapping)
 
+            # zhy_test
+            import pdb;pdb.set_trace()
+
             if prefill:
                 self.add_flags_recursive(is_first_iteration=True)
             else:
