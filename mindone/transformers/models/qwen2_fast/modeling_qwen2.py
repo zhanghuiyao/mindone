@@ -821,6 +821,9 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
             q_seq_lens,
         )
         
+        # zhy_test
+        print("="*100)
+        print(self.use_cache, self.is_first_iteration, batch_valid_length is not None)
         pre_gather = (not self.use_cache or self.is_first_iteration) and batch_valid_length is not None
         output = self.pre_gather_func(pre_gather, output, batch_valid_length, gather_index)
         logits = self.lm_head(output)
