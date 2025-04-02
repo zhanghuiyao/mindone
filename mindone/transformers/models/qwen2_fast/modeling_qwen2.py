@@ -845,8 +845,12 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
     def pre_gather_func(self, pre_gather, output, batch_valid_length, gather_index=None):
         """Pre gather operation in infer mode."""
         if not pre_gather:
+            # zhy_test
+            print("="*100 + "not pre_gather")
             return output
         if pre_gather:
+            # zhy_test
+            print("="*100 + "pre_gather")
             if self.is_dynamic:
                 batch_valid_length = mint.cumsum(batch_valid_length, 0)
                 output = self.prefill_gather_flatten(output, self.sub_batch_valid_len(batch_valid_length, 1), 1)
