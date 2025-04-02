@@ -858,6 +858,15 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
                 output = self.gather(output, self.sub_batch_valid_len(batch_valid_length, 1), 1)
         return output
 
+    def add_flags_custom(self, is_first_iteration):
+        """Add customized attributes for specific cells in the model."""
+        self.add_flags(is_first_iteration=is_first_iteration)
+        self.model.add_flags(is_first_iteration=is_first_iteration)
+        for layer in self.model.layers:
+            layer.add_flags(is_first_iteration=is_first_iteration)
+            layer.attention.infer_attention.add_flags(is_first_iteration=is_first_iteration)
+            layer.attention.infer_attention.paged_attention_mgr.add_flags(is_first_iteration=is_first_iteration)
+
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
         """
         prepare inputs for generation.
@@ -1018,7 +1027,7 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
             import pdb;pdb.set_trace()
 
             if prefill:
-                self.add_flags_recursive(is_first_iteration=True)
+                self.add_flags_custom(is_first_iteration=True)
             else:
                 model_inputs = self.slice_incremental_inputs(model_inputs, current_index)
 
@@ -1030,7 +1039,7 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
             print(f"model infer time: {(time.time()-s_time)*1000:.2f} ms")
 
             if prefill:
-                self.add_flags_recursive(is_first_iteration=False)
+                self.add_flags_custom(is_first_iteration=False)
 
             logits = outputs[0] if isinstance(outputs, tuple) else outputs
             logits = logits.reshape(-1, logits.shape[-1])  # (bs*?, dim)
