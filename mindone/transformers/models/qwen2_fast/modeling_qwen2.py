@@ -196,6 +196,7 @@ class FastQwen2Attention(nn.Cell):
                 f" and `num_heads`: {self.num_heads})."
             )
 
+        self.is_first_iteration = True
         self.compute_dtype = compute_dtype
         self.block_size = block_size
         self.num_blocks = num_blocks
@@ -292,7 +293,7 @@ class FastQwen2DecoderLayer(nn.Cell):
             )
         
         self.compute_dtype = compute_dtype
-        # self.is_first_iteration = True
+        self.is_first_iteration = True
         self.residual_dtype = residual_dtype
         self.residual_cast_flag = residual_dtype != compute_dtype
         if self.residual_cast_flag:
@@ -845,12 +846,8 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
     def pre_gather_func(self, pre_gather, output, batch_valid_length, gather_index=None):
         """Pre gather operation in infer mode."""
         if not pre_gather:
-            # zhy_test
-            print("="*100 + "not pre_gather")
             return output
         if pre_gather:
-            # zhy_test
-            print("="*100 + "pre_gather")
             if self.is_dynamic:
                 batch_valid_length = mint.cumsum(batch_valid_length, 0)
                 output = self.prefill_gather_flatten(output, self.sub_batch_valid_len(batch_valid_length, 1), 1)
@@ -1022,9 +1019,6 @@ class FastInferQwen2ForCausalLM(Qwen2PreTrainedModel):
                 model_inputs["block_tables"] = Tensor.from_numpy(block_tables)
             if slot_mapping is not None and "slot_mapping" not in model_inputs:
                 model_inputs["slot_mapping"] = Tensor.from_numpy(slot_mapping)
-
-            # zhy_test
-            import pdb;pdb.set_trace()
 
             if prefill:
                 self.add_flags_custom(is_first_iteration=True)
