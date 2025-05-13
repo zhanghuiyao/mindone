@@ -31,6 +31,15 @@ class MindSporeArguments:
     rank: int = field(default=0, metadata={"help": "rank id"})
     rank_size: int = field(default=1, metadata={"help": "device num"})
 
+    enable_dynamic_shape: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": (
+                "if enable_dynamic_shape is True, set_inputs for mindspore.nn.Cell`"
+            )
+        },
+    )
+
     enable_flash_attention: Optional[bool] = field(
         default=False,
         metadata={

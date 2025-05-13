@@ -35,13 +35,16 @@ def main():
     parser.add_argument(
         "--is_distribute", type=ast.literal_eval, default=False, help="whether or not to run distribute"
     )
+    parser.add_argument(
+        "--enable_dynamic_shape", type=ast.literal_eval, default=False, help="whether or not to run distribute"
+    )
     parser.add_argument("--rank", type=int, default=0, help="id of card")
     parser.add_argument("--rank_size", type=int, default=1, help="num of cards")
     args = parser.parse_args()
     print(args)
 
     # 0. set mindspore context
-    ms.set_context(mode=ms.GRAPH_MODE, jit_config={"jit_level": "O0"})
+    ms.set_context(mode=ms.GRAPH_MODE, jit_config={"jit_level": "O0"}, jit_syntax_level=ms.STRICT, pynative_synchronize=True)
     if args.is_distribute:
         from mindspore.communication import get_group_size, get_rank, init
 
@@ -99,7 +102,7 @@ def main():
     model = LlamaForSequenceClassification.from_pretrained(
         args.model_path,
         num_labels=5,
-        use_flash_attention_2=True,
+        use_flash_attention_2=False,  #zhy_test, True
         mindspore_dtype=ms.bfloat16 if args.bf16 else (ms.float16 if args.fp16 else None),
     )
     model.gradient_checkpointing_enable()
@@ -147,8 +150,29 @@ def main():
             None,
             None,
             None,
-            ms.tensor(batch["labels"], ms.int32),
+            ms.Tensor(batch["labels"], ms.int32),
         )
+
+        if args.enable_dynamic_shape:
+            # from mindone.transformers.mindspore_adapter.utils import enable_dynamic_shape
+            # input_ids = tuple_inputs[0]
+            # input_ids_shape = ms.Tensor(shape=(input_ids.shape[0],) + (None,) * (input_ids.ndim - 1), dtype=input_ids.dtype)
+            # enable_dynamic_shape(train_model, *tuple_inputs)
+
+            bs = tuple_inputs[0].shape[0]       #ms.Symbol(unique=True, min=1)
+            seq_len = None  #tuple_inputs[0].shape[1]  #ms.Symbol(unique=False, min=1)
+            
+            dynamic_inputs = (
+                ms.Tensor(shape=[bs, None], dtype=ms.int32),
+                ms.Tensor(shape=[bs, None], dtype=ms.bool_),
+                None,
+                None,
+                None,
+                ms.Tensor(shape=[None,], dtype=ms.int32),
+            )
+
+            train_model.set_inputs(*dynamic_inputs)
+
 
         loss, _, overflow = train_model(*tuple_inputs)
 
