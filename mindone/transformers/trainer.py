@@ -717,7 +717,6 @@ class Trainer:
 
             model_ = LabelSmootherModel(model, self.label_smoother, input_labels_index)
         else:
-
             class ReturnLoss(nn.Cell):
                 def __init__(self, model):
                     super(ReturnLoss, self).__init__(auto_prefix=False)
@@ -725,7 +724,10 @@ class Trainer:
 
                 def construct(self, *args, **kwargs):
                     outputs = self.model(*args, **kwargs)
-                    loss = outputs[0]
+                    if isinstance(outputs, (list, tuple)):
+                        loss = outputs[0]
+                    else:
+                        loss = outputs
                     return loss
 
             model_ = ReturnLoss(model)
@@ -1063,11 +1065,11 @@ class Trainer:
 
                 self.model.set_train(True)
                 self.train_model.set_train(True)
-                tr_loss_step, overflow = self.training_step(self.train_model, inputs)
+                tr_loss_step = self.training_step(self.train_model, inputs)
                 tr_loss_step = tr_loss_step.asnumpy()
 
                 # TODO: log by callback_fn
-                logger.info(f"Epoch: {epoch}, Step: {step}, tr_loss: {tr_loss_step}, overflow: {overflow}")
+                logger.info(f"Epoch: {epoch}, Step: {step}, tr_loss: {tr_loss_step}")
 
                 if args.logging_nan_inf_filter and (np.isnan(tr_loss_step) or np.isinf(tr_loss_step)):
                     # if loss is nan or inf simply add the average of previous logged losses
@@ -1366,12 +1368,14 @@ class Trainer:
                 # NLP models inputs are int/uint and those get adjusted to the right dtype of the
                 # embedding. Other models such as wav2vec2's inputs are already float and thus
                 # may need special handling to match the dtypes of the model
-                if data.dtype in (ms.int32, ms.int64, ms.bool_):
+                if data.dtype in (ms.float16, ms.bfloat16, ms.float32, ms.float64):
+                    return data.to(self.args.input_dtype)
+                elif data.dtype in (ms.uint8, ms.uint16, ms.uint32, ms.uint64, ms.int8, ms.int16, ms.int32, ms.int64):
+                    return data.to(ms.int32)
+                elif data.dtype in (ms.bool_,):
                     return data
-
-                kwargs = {"dtype": self.args.input_dtype}
-                return data.to(**kwargs)
-
+                else:
+                    return data
         elif isinstance(data, np.ndarray):
             return self._prepare_input(Tensor(data))
 
@@ -1393,14 +1397,14 @@ class Trainer:
 
         return inputs
 
-    def _prepare_inputs_ms(self, inputs: Dict[str, Union[Tensor, Any]]):
-        if len(inputs) == 0:
-            raise ValueError(
-                "The batch received was empty, your model won't be able to train on it. Double-check that your "
-                f"training dataset contains keys expected by the model: {','.join(self._signature_columns)}."
-            )
-        if self.args.past_index >= 0 and self._past is not None:
-            inputs["mems"] = self._past
+    def _get_tuple_inputs(self, inputs: Dict[str, Union[Tensor, Any]]):
+        # if len(inputs) == 0:
+        #     raise ValueError(
+        #         "The batch received was empty, your model won't be able to train on it. Double-check that your "
+        #         f"training dataset contains keys expected by the model: {','.join(self._signature_columns)}."
+        #     )
+        # if self.args.past_index >= 0 and self._past is not None:
+        #     inputs["mems"] = self._past
 
         # 1. get model args
         model_to_inspect = self.model
@@ -1439,7 +1443,9 @@ class Trainer:
         inputs = ()
         for data in tuple_inputs:
             if data is not None:
-                if hasattr(self.args, "input_dtype") and data.dtype in (np.float16, np.float32, np.float64):
+                if isinstance(data, ms.Tensor):
+                    data = data
+                elif hasattr(self.args, "input_dtype") and data.dtype in (np.float16, np.float32, np.float64):
                     data = ms.Tensor(data, dtype=self.args.input_dtype)
                 elif data.dtype in (np.uint8, np.uint16, np.uint32, np.uint64, np.int8, np.int16, np.int32, np.int64):
                     data = ms.Tensor(data, dtype=ms.int32)
@@ -1479,14 +1485,18 @@ class Trainer:
                 argument `labels`. Check your model's documentation for all accepted arguments.
 
         Return:
-            `Tuple[ms.Tensor, ms.Tensor]`: The tensor with training loss and overflow flag on this batch.
+            `ms.Tensor`: The tensor with training loss on this batch.
         """
+        dict_inputs = self._prepare_inputs(inputs)
+        tuple_inputs = self._get_tuple_inputs(dict_inputs)
+
         train_model = model
         train_model.set_train()
 
-        tuple_inputs = self._prepare_inputs_ms(inputs)
-
         loss, _, overflow = train_model(*tuple_inputs)
+
+        if overflow:
+            print("WARNING: this train step overflow.")
 
         # For LOMO optimizers you need to explicitly use the learnign rate
         if self.args.optim in [OptimizerNames.LOMO, OptimizerNames.ADALOMO]:
@@ -1498,7 +1508,7 @@ class Trainer:
         if self.use_apex:
             raise NotImplementedError
 
-        return loss / self.args.gradient_accumulation_steps, overflow
+        return loss / self.args.gradient_accumulation_steps
 
     def compute_loss(self, model, inputs, return_outputs=False):
         raise NotImplementedError

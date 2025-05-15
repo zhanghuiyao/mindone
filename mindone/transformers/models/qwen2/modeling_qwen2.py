@@ -935,7 +935,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = False,
         cache_position: Optional[ms.Tensor] = None,
         block_tables: Optional[ms.Tensor] = None,
         slot_mapping: Optional[ms.Tensor] = None,
@@ -1062,7 +1062,7 @@ class Qwen2ForSequenceClassification(Qwen2PreTrainedModel):
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = False,
     ) -> Union[Tuple, SequenceClassifierOutputWithPast]:
         r"""
         labels (`ms.Tensor` of shape `(batch_size,)`, *optional*):
@@ -1122,7 +1122,7 @@ class Qwen2ForSequenceClassification(Qwen2PreTrainedModel):
                 if self.num_labels == 1:
                     loss = loss_fct(pooled_logits.squeeze(), labels.squeeze())
                 else:
-                    loss = loss_fct(pooled_logits, labels)
+                    loss = loss_fct(pooled_logits, labels[:, None])
             elif self.config.problem_type == "single_label_classification":
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(pooled_logits.view(-1, self.num_labels), labels.view(-1))
