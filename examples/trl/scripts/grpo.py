@@ -42,7 +42,7 @@ from mindone.transformers.mindspore_adapter import MindSporeArguments, init_envi
 
 
 """
-python -i examples/scripts/grpo.py \
+python -u examples/scripts/grpo.py \
     --model_path Qwen/Qwen2.5-1.5B \
     --dataset_name trl-internal-testing/descriptiveness-sentiment-trl-style \
     --dataset_train_split descriptiveness \
@@ -51,23 +51,41 @@ python -i examples/scripts/grpo.py \
     --per_device_train_batch_size 64 \
     --gradient_accumulation_steps 1 \
     --total_episodes 10000 \
-    --missing_eos_penalty 1.0
+    --missing_eos_penalty 1.0 \
+    --bf16 True
+
+msrun --bind_core=True --worker_num=8 --local_worker_num=8 --master_port=9000 --log_dir=outputs/parallel_logs \
+python -u examples/scripts/grpo.py \
+    --model_path Qwen/Qwen2.5-1.5B \
+    --dataset_name trl-internal-testing/descriptiveness-sentiment-trl-style \
+    --dataset_train_split descriptiveness \
+    --learning_rate 3e-6 \
+    --output_dir ./outputs/grpo \
+    --per_device_train_batch_size 64 \
+    --gradient_accumulation_steps 1 \
+    --total_episodes 10000 \
+    --missing_eos_penalty 1.0 \
+    --bf16 True \
+    --zero_stage 2 \
+    --is_distribute True
 """
 
 
 @dataclass
 class MyTrainingArguments(ScriptArguments, MindSporeArguments, GRPOConfig):
-    model_path: str = field(default="Qwen/Qwen2.5-1.5B")
+    # additional args for dataset
     dataset_name: str = field(default="trl-internal-testing/descriptiveness-sentiment-trl-style")
     dataset_train_split: str = field(default="descriptiveness", metadata={"help": "Dataset split to use for training."})
-    output_dir: str = field(default="./outputs")
+    
+    # reset args default value
+    model_path: str = field(default="Qwen/Qwen2.5-1.5B")
     enable_dynamic_shape: bool = field(default=True)
     enable_flash_attention: bool = field(default=False)
     gradient_checkpointing: bool = field(default=False)
-    is_distribute: bool = field(default=False)
-
     bf16: bool = field(default=True)
     fp16: bool = field(default=False)
+    output_dir: str = field(default="./outputs")
+    is_distribute: bool = field(default=False)
 
 
 if __name__ == "__main__":
