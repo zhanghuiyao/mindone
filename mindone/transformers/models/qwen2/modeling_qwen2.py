@@ -1122,13 +1122,13 @@ class Qwen2ForSequenceClassification(Qwen2PreTrainedModel):
                 if self.num_labels == 1:
                     loss = loss_fct(pooled_logits.squeeze(), labels.squeeze())
                 else:
-                    loss = loss_fct(pooled_logits, labels[:, None])
+                    loss = loss_fct(pooled_logits, labels.unsqueeze(1))
             elif self.config.problem_type == "single_label_classification":
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(pooled_logits.view(-1, self.num_labels).to(ms.float32), labels.view(-1)).to(pooled_logits.dtype)
             elif self.config.problem_type == "multi_label_classification":
                 loss_fct = BCEWithLogitsLoss()
-                loss = loss_fct(pooled_logits, labels.to(pooled_logits.dtype))
+                loss = loss_fct(pooled_logits, labels.unsqueeze(1).to(pooled_logits.dtype))
         if not return_dict:
             output = (pooled_logits,) + transformer_outputs[1:]
             return ((loss,) + output) if loss is not None else output
