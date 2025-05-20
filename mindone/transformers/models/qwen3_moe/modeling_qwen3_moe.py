@@ -415,7 +415,7 @@ class Qwen3MoeRotaryEmbedding(nn.Cell):
         self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
 
         inv_freq, self.attention_scaling = self.rope_init_fn(self.config)
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.inv_freq = inv_freq
         self.original_inv_freq = self.inv_freq
 
     # FIXME: currently graph mode dose not dynamic_rope_update. To write a graceful if-else branch.
