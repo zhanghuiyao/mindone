@@ -16,8 +16,9 @@ def generate(args):
         attn_implementation=args.attn_implementation,
     )
 
-    # jitconfig = JitConfig(jit_level="O0", infer_boost="on")
-    # model.set_jit_config(jitconfig)
+    if args.ms_mode == ms.GRAPH_MODE:
+        jitconfig = JitConfig(jit_level="O0", infer_boost="on")
+        model.set_jit_config(jitconfig)
     config = model.config
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
@@ -50,6 +51,7 @@ def generate(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="qwen3 demo.")
 
+    parser.add_argument("--ms_mode", type=int, default=1, help="0 is Graph, 1 is Pynative")
     parser.add_argument("--prompt", type=str, default="the secret to baking a really good cake is")
     parser.add_argument("--model_name", type=str, default="Qwen/Qwen3-30B-A3B", help="Path to the pre-trained model.")
     parser.add_argument(
@@ -62,7 +64,11 @@ if __name__ == "__main__":
     # Parse the arguments
     args = parser.parse_args()
 
-    # ms.set_context(mode=ms.GRAPH_MODE, jit_syntax_level=ms.STRICT)
-    ms.set_context(mode=ms.PYNATIVE_MODE)
+    if args.ms_mode == ms.GRAPH_MODE:
+        ms.set_context(mode=ms.GRAPH_MODE, jit_syntax_level=ms.STRICT)
+    elif args.ms_mode == ms.PYNATIVE_MODE:
+        ms.set_context(mode=ms.PYNATIVE_MODE)
+    else:
+        raise ValueError
     
     generate(args)
