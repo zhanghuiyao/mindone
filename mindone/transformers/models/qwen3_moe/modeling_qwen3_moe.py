@@ -23,7 +23,7 @@ from functools import partial
 from typing import Callable, List, Optional, Tuple, Union
 
 import mindspore
-from mindspore import mint, nn, ops, Tensor, Parameter
+from mindspore import mint, nn, ops
 
 from transformers.models.qwen3_moe import Qwen3MoeConfig
 from transformers.utils import (
@@ -291,7 +291,7 @@ class Qwen3MoeRMSNorm(nn.Cell):
         Qwen3MoeRMSNorm is equivalent to T5LayerNorm
         """
         super().__init__()
-        self.weight = nn.Parameter(mint.ones(hidden_size))
+        self.weight = mindspore.Parameter(mint.ones(hidden_size))
         self.variance_epsilon = eps
 
     def construct(self, hidden_states):
