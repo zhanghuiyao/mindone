@@ -815,8 +815,11 @@ class Qwen3MoeModel(Qwen3MoePreTrainedModel):
             # In this case we assume that the mask comes already in inverted form and requires no inversion or slicing.
             causal_mask = attention_mask
         else:
+            # FIXME: BUG on MindSpore 2.5.0
             min_dtype = dtype_to_min(dtype)
-            causal_mask = mint.full((sequence_length, target_length), fill_value=min_dtype, dtype=dtype)
+            # causal_mask = mint.full((sequence_length, target_length), fill_value=min_dtype, dtype=dtype)
+            causal_mask = mint.ones((sequence_length, target_length), dtype=dtype) * min_dtype
+            
             diagonal_attend_mask = mint.arange(target_length) > cache_position.reshape(-1, 1)
             if config.sliding_window is not None:
                 # if we have sliding window, we should not attend to tokens beyond sliding window length, so we mask them out also
