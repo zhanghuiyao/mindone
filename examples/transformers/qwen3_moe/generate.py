@@ -16,8 +16,8 @@ def generate(args):
         attn_implementation=args.attn_implementation,
     )
 
-    jitconfig = JitConfig(jit_level="O0", infer_boost="on")
-    model.set_jit_config(jitconfig)
+    # jitconfig = JitConfig(jit_level="O0", infer_boost="on")
+    # model.set_jit_config(jitconfig)
     config = model.config
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
@@ -62,5 +62,7 @@ if __name__ == "__main__":
     # Parse the arguments
     args = parser.parse_args()
 
-    ms.set_context(mode=ms.GRAPH_MODE, jit_syntax_level=ms.STRICT)
+    # ms.set_context(mode=ms.GRAPH_MODE, jit_syntax_level=ms.STRICT)
+    ms.set_context(mode=ms.PYNATIVE_MODE)
+    
     generate(args)
