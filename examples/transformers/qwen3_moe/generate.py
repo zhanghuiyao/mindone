@@ -51,11 +51,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="qwen3 demo.")
 
     parser.add_argument("--prompt", type=str, default="the secret to baking a really good cake is")
-    parser.add_argument("--model_name", type=str, default="Qwen/Qwen3-0.6B-Base", help="Path to the pre-trained model.")
+    parser.add_argument("--model_name", type=str, default="Qwen/Qwen3-30B-A3B", help="Path to the pre-trained model.")
     parser.add_argument(
         "--attn_implementation",
         type=str,
-        default="paged_attention",
+        default="eager",
         choices=["paged_attention", "flash_attention_2", "eager"],
     )
 
