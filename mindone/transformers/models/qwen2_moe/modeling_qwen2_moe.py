@@ -184,8 +184,8 @@ class Qwen2MoeRotaryEmbedding(nn.Cell):
         inv_freq_expanded = self.inv_freq[None, :, None].float().broadcast_to((position_ids.shape[0], -1, 1))
         position_ids_expanded = position_ids[:, None, :].float()
 
-        # with autocast(enabled=False):  # Force float32
-        freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+        # Force float32
+        freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).swapdims(1, 2)
         emb = mint.cat((freqs, freqs), dim=-1)
         cos = emb.cos() * self.attention_scaling
         sin = emb.sin() * self.attention_scaling
