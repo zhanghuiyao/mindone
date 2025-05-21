@@ -151,7 +151,6 @@ class Qwen2MoeRMSNorm(nn.Cell):
     def construct(self, hidden_states):
         input_dtype = hidden_states.dtype
         hidden_states = hidden_states.to(mindspore.float32)
-        mindspore.Tensor().mean()
         variance = hidden_states.pow(2).mean(-1, keepdim=True)
         hidden_states = hidden_states * mint.rsqrt(variance + self.variance_epsilon)
         return self.weight * hidden_states.to(input_dtype)
