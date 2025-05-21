@@ -311,7 +311,7 @@ class Qwen2MoeAttention(nn.Cell):
         cache_position: Optional[mindspore.Tensor] = None,
         position_embeddings: Optional[Tuple[mindspore.Tensor, mindspore.Tensor]] = None,  # necessary, but kept here for BC
     ) -> Tuple[mindspore.Tensor, Optional[mindspore.Tensor], Optional[Tuple[mindspore.Tensor]]]:
-        bsz, q_len, _ = hidden_states.size()
+        bsz, q_len, _ = hidden_states.shape
 
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
@@ -343,10 +343,10 @@ class Qwen2MoeAttention(nn.Cell):
         attn_weights = mint.nn.functional.dropout(attn_weights, p=self.attention_dropout, training=self.training)
         attn_output = mint.matmul(attn_weights, value_states)
 
-        if attn_output.size() != (bsz, self.num_heads, q_len, self.head_dim):
+        if attn_output.shape != (bsz, self.num_heads, q_len, self.head_dim):
             raise ValueError(
                 f"`attn_output` should be of size {(bsz, self.num_heads, q_len, self.head_dim)}, but is"
-                f" {attn_output.size()}"
+                f" {attn_output.shape}"
             )
 
         attn_output = attn_output.transpose(1, 2).contiguous()
@@ -392,7 +392,7 @@ class Qwen2MoeFlashAttention2(Qwen2MoeAttention):
         cache_position: Optional[mindspore.Tensor] = None,
         position_embeddings: Optional[Tuple[mindspore.Tensor, mindspore.Tensor]] = None,  # necessary, but kept here for BC
     ):
-        bsz, q_len, _ = hidden_states.size()
+        bsz, q_len, _ = hidden_states.shape
 
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
@@ -505,7 +505,7 @@ class Qwen2MoeSdpaAttention(Qwen2MoeAttention):
                 position_embeddings=position_embeddings,
             )
 
-        bsz, q_len, _ = hidden_states.size()
+        bsz, q_len, _ = hidden_states.shape
 
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
@@ -1034,7 +1034,7 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
     ):
         if self.config._attn_implementation == "flash_attention_2":
             if attention_mask is not None and past_key_values is not None:
-                is_padding_right = attention_mask[:, -1].sum().item() != input_tensor.size()[0]
+                is_padding_right = attention_mask[:, -1].sum().item() != input_tensor.shape[0]
                 if is_padding_right:
                     raise ValueError(
                         "You are attempting to perform batched generation with padding_side='right'"
