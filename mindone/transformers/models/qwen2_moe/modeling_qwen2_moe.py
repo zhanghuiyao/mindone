@@ -185,7 +185,7 @@ class Qwen2MoeRotaryEmbedding(nn.Cell):
         inv_freq_expanded = self.inv_freq[None, :, None].float().broadcast_to((position_ids.shape[0], -1, 1))
         position_ids_expanded = position_ids[:, None, :].float()
 
-        # with torch.autocast(device_type=device_type, enabled=False):  # Force float32
+        # with autocast(enabled=False):  # Force float32
         freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
         emb = mint.cat((freqs, freqs), dim=-1)
         cos = emb.cos() * self.attention_scaling
@@ -755,9 +755,9 @@ class Qwen2MoePreTrainedModel(PreTrainedModel):
     supports_gradient_checkpointing = True
     _no_split_modules = ["Qwen2MoeDecoderLayer"]
     _skip_keys_device_placement = "past_key_values"
-    _supports_flash_attn_2 = True
+    _supports_flash_attn_2 = False
     _supports_sdpa = True
-    _supports_cache_class = True
+    _supports_cache_class = False
 
     def _init_weights(self, module):
         if not self.training:
@@ -943,7 +943,7 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
         if cache_position is None:
             past_seen_tokens = get_seq_length(past_key_values) if past_key_values is not None else 0
             cache_position = mint.arange(
-                past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
+                past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1]
             )
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
@@ -1097,7 +1097,6 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
         if (
             self.config._attn_implementation == "sdpa"
             and attention_mask is not None
-            and attention_mask.device.type in ["cuda", "xpu", "npu"]
             and not output_attentions
         ):
             # Attend to all tokens in fully masked rows in the causal_mask, for example the relevant first rows when
@@ -1302,7 +1301,7 @@ class Qwen2MoeForCausalLM(Qwen2MoePreTrainedModel, GenerationMixin):
                 attention_mask,
             )
             if labels is not None:
-                loss += self.router_aux_loss_coef * aux_loss.to(loss.device)  # make sure to reside in the same device
+                loss += self.router_aux_loss_coef * aux_loss
 
         result = (loss, aux_loss, logits) + outputs[1:]
         result = tuple(v for v in result if v is not None)

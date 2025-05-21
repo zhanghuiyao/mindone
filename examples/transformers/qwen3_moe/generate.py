@@ -7,6 +7,10 @@ from mindspore import JitConfig
 
 from mindone.transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeForCausalLM
 
+import mindspore.mint.distributed as dist
+from mindspore.communication import GlobalComm
+from mindone.trainers.zero import prepare_network
+
 
 def generate(args):
     # load model
