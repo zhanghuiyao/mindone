@@ -1157,17 +1157,15 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
             # causal_mask = mint.full((sequence_length, target_length), fill_value=min_dtype, dtype=dtype)
             causal_mask = mint.ones((sequence_length, target_length), dtype=dtype) * min_dtype
 
-            diagonal_attend_mask = mint.arange(target_length) > cache_position.reshape(
-                -1, 1
-            )
-            if config.get_text_config().sliding_window is not None:
+            diagonal_attend_mask = mint.arange(target_length) > cache_position.reshape(-1, 1)
+            if config.sliding_window is not None:
                 # if we have sliding window, we should not attend to tokens beyond sliding window length, so we mask them out also
                 # the check is needed to verify is current checkpoint was trained with sliding window or not
                 if not isinstance(past_key_values, SlidingWindowCache) or sequence_length > target_length:
                     sliding_attend_mask = mint.arange(target_length) <= (
-                        cache_position.reshape(-1, 1) - config.get_text_config().sliding_window
+                        cache_position.reshape(-1, 1) - config.sliding_window
                     )
-                    diagonal_attend_mask = mint.bitwise_or(diagonal_attend_mask, sliding_attend_mask)
+                    diagonal_attend_mask = diagonal_attend_mask.bitwise_or(sliding_attend_mask)
             causal_mask *= diagonal_attend_mask
             causal_mask = causal_mask[None, None, :, :].broadcast_to((batch_size, 1, -1, -1))
             if attention_mask is not None:
