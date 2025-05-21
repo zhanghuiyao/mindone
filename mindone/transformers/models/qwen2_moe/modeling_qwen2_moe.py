@@ -610,8 +610,9 @@ class Qwen2MoeSparseMoeBlock(nn.Cell):
         # for expert_idx in expert_hitted:
         #2. fixed compile
         for expert_idx in range(expert_mask.shape[0]):
-            if not expert_mask.sum(dim=(-1, -2))[expert_idx] > 0:
-                continue
+            # zhy_test
+            # if not expert_mask.sum(dim=(-1, -2))[expert_idx] > 0:
+            #     continue
 
             expert_layer = self.experts[expert_idx]
             idx, top_x = mint.where(expert_mask[expert_idx])
