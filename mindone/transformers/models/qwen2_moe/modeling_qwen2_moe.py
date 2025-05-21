@@ -581,6 +581,7 @@ class Qwen2MoeSparseMoeBlock(nn.Cell):
         self.shared_expert = Qwen2MoeMLP(config, intermediate_size=config.shared_expert_intermediate_size)
         self.shared_expert_gate = nn.Linear(config.hidden_size, 1, bias=False)
 
+    @mindspore.jit
     def construct(self, hidden_states: mindspore.Tensor) -> mindspore.Tensor:
         """ """
         batch_size, sequence_length, hidden_dim = hidden_states.shape
@@ -655,7 +656,6 @@ class Qwen2MoeDecoderLayer(nn.Cell):
         self.input_layernorm = Qwen2MoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = Qwen2MoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
-    @mindspore.jit
     def construct(
         self,
         hidden_states: mindspore.Tensor,
