@@ -581,7 +581,7 @@ class Qwen2MoeSparseMoeBlock(nn.Cell):
         self.shared_expert = Qwen2MoeMLP(config, intermediate_size=config.shared_expert_intermediate_size)
         self.shared_expert_gate = nn.Linear(config.hidden_size, 1, bias=False)
 
-    # @mindspore.jit
+    @mindspore.jit
     def construct(self, hidden_states: mindspore.Tensor) -> mindspore.Tensor:
         """ """
         batch_size, sequence_length, hidden_dim = hidden_states.shape
@@ -610,8 +610,9 @@ class Qwen2MoeSparseMoeBlock(nn.Cell):
         # expert_hitted = (expert_mask.sum(dim=(-1, -2)) > 0).nonzero(as_tuple=True)[0].tolist()
         # for expert_idx in expert_hitted:
         #2. fixed compile
+        _selected = (expert_mask.sum(dim=(-1, -2)) > 0)
         for expert_idx in range(expert_mask.shape[0]):
-            if not expert_mask.sum(dim=(-1, -2))[expert_idx] > 0:
+            if not _selected[expert_idx]:
                 continue
 
             expert_layer = self.experts[expert_idx]
@@ -625,9 +626,7 @@ class Qwen2MoeSparseMoeBlock(nn.Cell):
 
             # However `index_add_` only support torch tensors for indexing so we'll use
             # the `top_x` tensor here.
-            # FIXME: replace to mint.index_add
-            # final_hidden_states = mint.index_add(final_hidden_states, 0, top_x, current_hidden_states.to(hidden_states.dtype))
-            final_hidden_states = ops.index_add(final_hidden_states.to(mindspore.float32), top_x.to(mindspore.int32), current_hidden_states.to(mindspore.float32), 0).to(hidden_states.dtype)
+            final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
 
         shared_expert_output = self.shared_expert(hidden_states)
 
