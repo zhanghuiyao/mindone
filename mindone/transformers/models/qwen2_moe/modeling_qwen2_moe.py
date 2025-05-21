@@ -911,7 +911,7 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         output_router_logits: Optional[bool] = None,
         cache_position: Optional[mindspore.Tensor] = None,
-    ) -> tuple:
+    ) -> Tuple:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_router_logits = (
             output_router_logits if output_router_logits is not None else self.config.output_router_logits
@@ -949,7 +949,7 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
             inputs_embeds = self.embed_tokens(input_ids)
 
         if cache_position is None:
-            past_seen_tokens = get_seq_length(past_key_values) if past_key_values is not None else 0
+            past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
             cache_position = mint.arange(
                 past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1]
             )
@@ -1032,7 +1032,6 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
         #     router_logits=all_router_logits,
         # )
 
-    # Copied from transformers.models.phi3.modeling_phi3.Phi3Model._update_causal_mask with Phi3->Qwen2Moe
     def _update_causal_mask(
         self,
         attention_mask: Union[mindspore.Tensor, "BlockMask"],
@@ -1041,25 +1040,15 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
         past_key_values: Cache,
         output_attentions: bool = False,
     ):
-        if self.config._attn_implementation == "flash_attention_2":
-            if attention_mask is not None and past_key_values is not None:
-                is_padding_right = attention_mask[:, -1].sum().item() != input_tensor.shape[0]
-                if is_padding_right:
-                    raise ValueError(
-                        "You are attempting to perform batched generation with padding_side='right'"
-                        " this may lead to unexpected behaviour for Flash Attention version of Qwen2Moe. Make sure to "
-                        " call `tokenizer.padding_side  = 'left'` before tokenizing the input. "
-                    )
-            if attention_mask is not None and 0.0 in attention_mask:
-                return attention_mask
-            return None
 
         # For SDPA, when possible, we will rely on its `is_causal` argument instead of its `attn_mask` argument, in
         # order to dispatch on Flash Attention 2. This feature is not compatible with static cache, as SDPA will fail
         # to infer the attention mask.
         past_seen_tokens = get_seq_length(past_key_values) if past_key_values is not None else 0
+
         using_static_cache = isinstance(past_key_values, StaticCache)
-        using_sliding_window_cache = isinstance(past_key_values, SlidingWindowCache)
+        # using_sliding_window_cache = isinstance(past_key_values, SlidingWindowCache)
+        using_sliding_window_cache = False
 
         # When output attentions is True, sdpa implementation's forward method calls the eager implementation's forward
         if (
@@ -1115,7 +1104,6 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
         return causal_mask
 
     @staticmethod
-    # Copied from transformers.models.mistral.modeling_mistral.MistralModel._prepare_4d_causal_attention_mask_with_cache_position with Mistral->Qwen2Moe
     def _prepare_4d_causal_attention_mask_with_cache_position(
         attention_mask: mindspore.Tensor,
         sequence_length: int,
