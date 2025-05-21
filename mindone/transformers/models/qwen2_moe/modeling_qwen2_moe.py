@@ -317,9 +317,9 @@ class Qwen2MoeAttention(nn.Cell):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
-        query_states = query_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
-        key_states = key_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
+        query_states = query_states.view(bsz, q_len, -1, self.head_dim).swapdims(1, 2)
+        key_states = key_states.view(bsz, q_len, -1, self.head_dim).swapdims(1, 2)
+        value_states = value_states.view(bsz, q_len, -1, self.head_dim).swapdims(1, 2)
 
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
@@ -332,7 +332,7 @@ class Qwen2MoeAttention(nn.Cell):
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
 
-        attn_weights = mint.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
+        attn_weights = mint.matmul(query_states, key_states.swapdims(2, 3)) / math.sqrt(self.head_dim)
 
         if attention_mask is not None:  # no matter the length, we just slice it
             causal_mask = attention_mask[:, :, :, : key_states.shape[-2]]
@@ -349,7 +349,7 @@ class Qwen2MoeAttention(nn.Cell):
                 f" {attn_output.shape}"
             )
 
-        attn_output = attn_output.transpose(1, 2).contiguous()
+        attn_output = attn_output.swapdims(1, 2).contiguous()
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
 
         attn_output = self.o_proj(attn_output)
@@ -398,9 +398,9 @@ class Qwen2MoeFlashAttention2(Qwen2MoeAttention):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
-        query_states = query_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
-        key_states = key_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
+        query_states = query_states.view(bsz, q_len, -1, self.head_dim).swapdims(1, 2)
+        key_states = key_states.view(bsz, q_len, -1, self.head_dim).swapdims(1, 2)
+        value_states = value_states.view(bsz, q_len, -1, self.head_dim).swapdims(1, 2)
 
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
@@ -432,9 +432,9 @@ class Qwen2MoeFlashAttention2(Qwen2MoeAttention):
             value_states = value_states.to(target_dtype)
 
         # Reashape to the expected shape for Flash Attention
-        query_states = query_states.transpose(1, 2)
-        key_states = key_states.transpose(1, 2)
-        value_states = value_states.transpose(1, 2)
+        query_states = query_states.swapdims(1, 2)
+        key_states = key_states.swapdims(1, 2)
+        value_states = value_states.swapdims(1, 2)
 
         if (
             self.config.use_sliding_window
@@ -511,9 +511,9 @@ class Qwen2MoeSdpaAttention(Qwen2MoeAttention):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
-        query_states = query_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
-        key_states = key_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
+        query_states = query_states.view(bsz, q_len, -1, self.head_dim).swapdims(1, 2)
+        key_states = key_states.view(bsz, q_len, -1, self.head_dim).swapdims(1, 2)
+        value_states = value_states.view(bsz, q_len, -1, self.head_dim).swapdims(1, 2)
 
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
@@ -550,7 +550,7 @@ class Qwen2MoeSdpaAttention(Qwen2MoeAttention):
             is_causal=is_causal,
         )
 
-        attn_output = attn_output.transpose(1, 2).contiguous()
+        attn_output = attn_output.swapdims(1, 2).contiguous()
         attn_output = attn_output.view(bsz, q_len, self.hidden_size)
 
         attn_output = self.o_proj(attn_output)
