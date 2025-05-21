@@ -619,7 +619,7 @@ class Qwen2MoeSparseMoeBlock(nn.Cell):
             # the `top_x` tensor here.
             # FIXME: replace to mint.index_add
             # final_hidden_states = mint.index_add(final_hidden_states, 0, top_x, current_hidden_states.to(hidden_states.dtype))
-            final_hidden_states = ops.index_add(final_hidden_states, top_x, current_hidden_states.to(hidden_states.dtype), 0)
+            final_hidden_states = ops.index_add(final_hidden_states, top_x.to(mindspore.int32), current_hidden_states.to(hidden_states.dtype), 0)
 
         shared_expert_output = self.shared_expert(hidden_states)
 
