@@ -38,15 +38,13 @@ from mindone.transformers.activations import ACT2FN
 from mindone.transformers.cache_utils import Cache, DynamicCache, SlidingWindowCache, StaticCache, get_seq_length
 from mindone.transformers.generation import GenerationMixin
 from mindone.transformers.modeling_attn_mask_utils import AttentionMaskConverter
-from mindone.transformers.modeling_flash_attention_utils import flash_attn_supports_top_left_mask, is_flash_attn_available
 from mindone.transformers.modeling_outputs import (
-    MoeCausalLMOutputWithPast,
-    MoeModelOutputWithPast,
+    CausalLMOutputWithPast,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutputWithPast,
     TokenClassifierOutput,
 )
-from mindone.transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_update
+from mindone.transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 from mindone.transformers.modeling_utils import PreTrainedModel
 from mindone.transformers.mindspore_adapter import dtype_to_min
 
@@ -1214,7 +1212,7 @@ class Qwen2MoeForCausalLM(Qwen2MoePreTrainedModel, GenerationMixin):
 
     # @can_return_tuple
     @add_start_docstrings_to_model_forward(QWEN2MOE_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=MoeCausalLMOutputWithPast, config_class=_CONFIG_FOR_DOC)
+    @replace_return_docstrings(output_type=CausalLMOutputWithPast, config_class=_CONFIG_FOR_DOC)
     def construct(
         self,
         input_ids: Optional[mindspore.Tensor] = None,
