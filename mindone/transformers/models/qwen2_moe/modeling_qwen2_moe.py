@@ -604,8 +604,15 @@ class Qwen2MoeSparseMoeBlock(nn.Cell):
         expert_mask = mint.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
 
         # Loop over all available experts in the model and perform the computation on each expert
-        expert_hitted = (expert_mask.sum(dim=(-1, -2)) > 0).nonzero(as_tuple=True)[0].tolist()
-        for expert_idx in expert_hitted:
+        # FIXME: not support on MindSpore 2.5.0
+        #1. original
+        # expert_hitted = (expert_mask.sum(dim=(-1, -2)) > 0).nonzero(as_tuple=True)[0].tolist()
+        # for expert_idx in expert_hitted:
+        #2. fixed compile
+        for expert_idx in range(expert_mask.shape[0]):
+            if not expert_mask.sum(dim=(-1, -2))[expert_idx] > 0:
+                continue
+
             expert_layer = self.experts[expert_idx]
             idx, top_x = mint.where(expert_mask[expert_idx])
 
