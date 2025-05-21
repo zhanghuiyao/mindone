@@ -36,7 +36,7 @@ from transformers.utils import (
 )
 
 from mindone.transformers.activations import ACT2FN
-from mindone.transformers.cache_utils import Cache, DynamicCache, SlidingWindowCache, StaticCache
+from mindone.transformers.cache_utils import Cache, DynamicCache, SlidingWindowCache, StaticCache, get_seq_length
 from mindone.transformers.generation import GenerationMixin
 from mindone.transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from mindone.transformers.modeling_flash_attention_utils import FlashAttentionKwargs
@@ -715,8 +715,6 @@ class Qwen3MoeModel(Qwen3MoePreTrainedModel):
         past_key_values: Cache,
         output_attentions: bool = False,
     ):
-
-        from mindone.transformers.cache_utils import get_seq_length
 
         # For SDPA, when possible, we will rely on its `is_causal` argument instead of its `attn_mask` argument, in
         # order to dispatch on Flash Attention 2. This feature is not compatible with static cache, as SDPA will fail
