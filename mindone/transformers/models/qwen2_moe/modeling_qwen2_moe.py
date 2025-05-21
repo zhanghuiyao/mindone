@@ -610,9 +610,8 @@ class Qwen2MoeSparseMoeBlock(nn.Cell):
         # for expert_idx in expert_hitted:
         #2. fixed compile
         for expert_idx in range(expert_mask.shape[0]):
-            # zhy_test
-            # if not expert_mask.sum(dim=(-1, -2))[expert_idx] > 0:
-            #     continue
+            if not expert_mask.sum(dim=(-1, -2))[expert_idx] > 0:
+                continue
 
             expert_layer = self.experts[expert_idx]
             idx, top_x = mint.where(expert_mask[expert_idx])
@@ -656,6 +655,7 @@ class Qwen2MoeDecoderLayer(nn.Cell):
         self.input_layernorm = Qwen2MoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = Qwen2MoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
+    @mindspore.jit
     def construct(
         self,
         hidden_states: mindspore.Tensor,
@@ -1033,6 +1033,7 @@ class Qwen2MoeModel(Qwen2MoePreTrainedModel):
         #     router_logits=all_router_logits,
         # )
 
+    @mindspore.jit
     def _update_causal_mask(
         self,
         attention_mask: Union[mindspore.Tensor, "BlockMask"],
