@@ -5,12 +5,12 @@ from transformers import AutoTokenizer
 import mindspore as ms
 from mindspore import JitConfig
 
-from mindone.transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeForCausalLM
+from mindone.transformers.models.qwen2_moe.modeling_qwen2_moe import Qwen2MoeForCausalLM
 
 
 def generate(args):
     # load model
-    model = Qwen3MoeForCausalLM.from_pretrained(
+    model = Qwen2MoeForCausalLM.from_pretrained(
         args.model_name,
         mindspore_dtype=ms.bfloat16,
         attn_implementation=args.attn_implementation,
