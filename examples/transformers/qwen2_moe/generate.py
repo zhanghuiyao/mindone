@@ -2,7 +2,7 @@ import argparse
 
 from transformers import AutoTokenizer
 
-import mindspore as ms
+import mindspore
 from mindspore import JitConfig
 
 from mindone.transformers.models.qwen2_moe.modeling_qwen2_moe import Qwen2MoeForCausalLM
@@ -12,11 +12,11 @@ def generate(args):
     # load model
     model = Qwen2MoeForCausalLM.from_pretrained(
         args.model_name,
-        mindspore_dtype=ms.bfloat16,
+        mindspore_dtype=mindspore.bfloat16,
         attn_implementation=args.attn_implementation,
     )
 
-    if args.ms_mode == ms.GRAPH_MODE:
+    if args.ms_mode == mindspore.GRAPH_MODE:
         jitconfig = JitConfig(jit_level="O0", infer_boost="on")
         model.set_jit_config(jitconfig)
     config = model.config
@@ -31,7 +31,7 @@ def generate(args):
     print("Successfully loaded Qwen3ForCausalLM")
 
     # prepare inputs
-    input_ids = ms.Tensor(tokenizer([args.prompt], return_tensors="np").input_ids, ms.int32)
+    input_ids = mindspore.Tensor(tokenizer([args.prompt], return_tensors="np").input_ids, mindspore.int32)
     model_inputs = {}
     model_inputs["input_ids"] = input_ids
 
@@ -64,10 +64,10 @@ if __name__ == "__main__":
     # Parse the arguments
     args = parser.parse_args()
 
-    if args.ms_mode == ms.GRAPH_MODE:
-        ms.set_context(mode=ms.GRAPH_MODE, jit_syntax_level=ms.STRICT)
-    elif args.ms_mode == ms.PYNATIVE_MODE:
-        ms.set_context(mode=ms.PYNATIVE_MODE)
+    if args.ms_mode == mindspore.GRAPH_MODE:
+        mindspore.set_context(mode=mindspore.GRAPH_MODE, jit_syntax_level=mindspore.STRICT)
+    elif args.ms_mode == mindspore.PYNATIVE_MODE:
+        mindspore.set_context(mode=mindspore.PYNATIVE_MODE)
     else:
         raise ValueError
     
