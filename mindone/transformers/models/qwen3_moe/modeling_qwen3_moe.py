@@ -826,7 +826,7 @@ class Qwen3MoeModel(Qwen3MoePreTrainedModel):
                     sliding_attend_mask = mint.arange(target_length) <= (
                         cache_position.reshape(-1, 1) - config.sliding_window
                     )
-                    diagonal_attend_mask.bitwise_or(sliding_attend_mask)
+                    diagonal_attend_mask = diagonal_attend_mask.bitwise_or(sliding_attend_mask)
             causal_mask *= diagonal_attend_mask
             causal_mask = causal_mask[None, None, :, :].broadcast_to((batch_size, 1, -1, -1))
             if attention_mask is not None:
