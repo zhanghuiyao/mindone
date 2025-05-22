@@ -1,20 +1,30 @@
+import ast
+import time
 import argparse
+from functools import partial
 
 from transformers import AutoTokenizer
 
 import mindspore
-from mindspore import JitConfig
+from mindspore import mint, JitConfig
+from mindspore.communication import GlobalComm
 
 from mindone.transformers.models.qwen2_moe.modeling_qwen2_moe import Qwen2MoeForCausalLM
+from mindone.trainers.zero import prepare_network
 
 
 def generate(args):
     # load model
+    s_time = time.time()
     model = Qwen2MoeForCausalLM.from_pretrained(
         args.model_name,
         mindspore_dtype=mindspore.bfloat16,
         attn_implementation=args.attn_implementation,
     )
+
+    if args.zero3:
+        shard_fn = partial(prepare_network, zero_stage=3, optimizer_parallel_group=GlobalComm.WORLD_COMM_GROUP)
+        model = shard_fn(model)
 
     if args.ms_mode == mindspore.GRAPH_MODE:
         jitconfig = JitConfig(jit_level="O0", infer_boost="on")
@@ -25,10 +35,11 @@ def generate(args):
     # info
     print("*" * 100)
     print(
-        f"Using {config._attn_implementation}, use_cache {config.use_cache},"
-        f"dtype {config.mindspore_dtype}, layer {config.num_hidden_layers}"
+        f"Using {config._attn_implementation}, use_cache {config.use_cache}, "
+        f"dtype {config.mindspore_dtype}, layer {config.num_hidden_layers}, "
+        f"Run with {'ZeRO3' if args.zero3 else 'Native'}"
     )
-    print("Successfully loaded Qwen3ForCausalLM")
+    print(f"Successfully loaded Qwen3ForCausalLMtime, cost: {(time.time()-s_time)/60:.2f} min")
 
     # prepare inputs
     input_ids = mindspore.Tensor(tokenizer([args.prompt], return_tensors="np").input_ids, mindspore.int32)
@@ -60,9 +71,14 @@ if __name__ == "__main__":
         default="eager",
         choices=["paged_attention", "flash_attention_2", "eager"],
     )
+    parser.add_argument("--zero3", type=ast.literal_eval, default=True)
 
     # Parse the arguments
     args = parser.parse_args()
+
+    if args.zero3:
+        mint.distributed.init_process_group(backend="hccl")
+        mindspore.set_auto_parallel_context(parallel_mode="data_parallel")
 
     if args.ms_mode == mindspore.GRAPH_MODE:
         mindspore.set_context(mode=mindspore.GRAPH_MODE, jit_syntax_level=mindspore.STRICT)
