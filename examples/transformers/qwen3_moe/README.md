@@ -17,7 +17,8 @@ pip install -e .
 For convienience, you can use the following command:
 
 ```shell
-msrun --bind_core=True --worker_num=2 --local_worker_num=2 --master_port=9000 --log_dir=outputs/parallel_logs \
+export ASCEND_RT_VISIBLE_DEVICES=0,1
+msrun --bind_core=True --worker_num=2 --local_worker_num=2 --master_port=9001 --log_dir=outputs/parallel_logs \
 python examples/transformers/qwen3_moe/generate.py \
   --model_name /PATH TO/Qwen3-30B-A3B \
   --ms_mode 0 \
