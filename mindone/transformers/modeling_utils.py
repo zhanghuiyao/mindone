@@ -509,7 +509,8 @@ class ModuleUtilsMixin:
 
     def to(self, dtype: Optional[ms.Type] = None):
         for p in self.get_parameters():
-            p.set_dtype(dtype)
+            if p.is_floating_point():
+                p.set_dtype(dtype)
         return self
 
     def float(self):
