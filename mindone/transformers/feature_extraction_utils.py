@@ -34,13 +34,24 @@ from transformers.utils import (
     PROCESSOR_NAME,
     PushToHubMixin,
     copy_func,
-    download_url,
-    is_offline_mode,
-    is_remote_url,
+    
     logging,
 )
 from transformers.utils.hub import cached_file
 
+
+
+def is_offline_mode():
+    """Check if we're in offline mode."""
+    import os
+    return os.environ.get("TRANSFORMERS_OFFLINE", "0") == "1"
+
+
+def is_remote_url(url_or_filename):
+    """Check if the input is a remote URL."""
+    if url_or_filename is None:
+        return False
+    return url_or_filename.startswith("http://") or url_or_filename.startswith("https://")
 from .utils import TensorType, is_mindspore_available, is_mindspore_tensor, is_numpy_array, requires_backends
 
 if TYPE_CHECKING:
@@ -453,7 +464,7 @@ class FeatureExtractionMixin(PushToHubMixin):
             is_local = True
         elif is_remote_url(pretrained_model_name_or_path):
             feature_extractor_file = pretrained_model_name_or_path
-            resolved_feature_extractor_file = download_url(pretrained_model_name_or_path)
+            import tempfile, urllib.request; fd, resolved_feature_extractor_file = tempfile.mkstemp(); urllib.request.urlretrieve(pretrained_model_name_or_path, resolved_feature_extractor_file)
         else:
             feature_extractor_file = FEATURE_EXTRACTOR_NAME
             try:

@@ -112,6 +112,7 @@ from . import (
     git,
     glm,
     glm4_moe,
+    glmasr,
     glpn,
     got_ocr2,
     gpt2,
